@@ -239,7 +239,7 @@ def version():
     Prints the "Invoke Release" version and the version of the current project.
     """
     from invoke_release.version import __version__
-    print 'Invoke Release %s' % (__version__, )
+    print 'Eventbrite Command Line Release Tools ("Invoke Release") %s' % (__version__, )
     project_version = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
     print '%s %s' % (MODULE_DISPLAY_NAME, project_version, )
 

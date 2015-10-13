@@ -23,7 +23,7 @@ must be executed from the home directory of the project that already has Invoke 
 $ invoke --version
 Invoke 0.11.1
 $ invoke version
-Invoke Release 0.4.0
+Eventbrite Command Line Release Tools ("Invoke Release") 0.4.0
 EB Common 1.8.2
 ```
 

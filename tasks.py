@@ -4,4 +4,7 @@ import sys
 sys.path.insert(0, 'python')
 from invoke_release.tasks import *
 
-configure_release_parameters(module_name='invoke_release', display_name='Invoke Release Library')
+configure_release_parameters(
+    module_name='invoke_release',
+    display_name='Eventbrite Command Line Release Tools ("Invoke Release")'
+)
