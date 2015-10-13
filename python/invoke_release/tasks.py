@@ -153,9 +153,12 @@ def _write_to_changelog(root_directory, release_version, message, verbose):
             if not wrote_new_message and re.search('^=+$', line):
                 output.append(line.strip())
                 output.append('')
-                output.append('%s (%s)' % (release_version, datetime.datetime.now().strftime('%Y-%m-%d'), ))
-                output.append('------------------')
+
+                header_line = '%s (%s)' % (release_version, datetime.datetime.now().strftime('%Y-%m-%d'), )
+                output.append(header_line)
+                output.append('-' * len(header_line))
                 output.append(message)
+
                 wrote_new_message = True
             else:
                 output.append(line.strip())

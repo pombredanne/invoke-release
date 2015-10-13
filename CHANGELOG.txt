@@ -7,3 +7,7 @@ Changelog
 - Improved language, spelling, and grammar on output messages.
 - Added support for additional exit points and multi-line changelog messages.
 - Fixed bugs from version 0.1.0.
+
+0.1.0 (2015-10-13)
+------------------
+- Initial test release.
