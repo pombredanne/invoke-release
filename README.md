@@ -1,5 +1,13 @@
 # Eventbrite Command Line Release Tools ("Invoke Release")
 
+The Invoke Release tools are a set of command line tools that help Eventbrite engineers release services and libraries
+quickly, easily, and in a consistent manner. It ensures that the version standards for our projects are the same
+across all projects, and minimizes the possible errors that can occur during a release. This documentation is broken
+down into two sections:
+
+* [Using Invoke Release on Existing Projects](#Using-Invoke-Release-on-Existing-Projects)
+* [Integrating Invoke Release into Your Project](#Integrating-Invoke-Release-into-Your-Project)
+
 ## Using Invoke Release on Existing Projects
 
 If a project already has support for Invoke Release, using it is easy. If you've never run Invoke Release before,
