@@ -18,7 +18,8 @@ $ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.4
 
 You can confirm that the project and its requirements were successfully installed by checking the version:
 
-```$ invoke --version
+```
+$ invoke --version
 Invoke 0.11.1
 ```
 
