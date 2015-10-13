@@ -213,8 +213,8 @@ def _commit_release_changes(root_directory, release_version, verbose):
 
 
 def _push_release_changes(release_version, verbose):
-    push = raw_input('push release changes to master? (y/n): ')
-    if push == 'y':
+    push = raw_input('Push release changes and tag to master? (y/N): ').strip()
+    if push.lower() == 'y':
         if verbose:
             print 'Pushing changes to master...'
 
