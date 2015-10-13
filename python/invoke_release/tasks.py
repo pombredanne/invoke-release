@@ -258,8 +258,8 @@ def release(verbose=False, nostash=False):
                     VERSION_RE,
                 )
             )
-        print('Enter a changelog message (or "exit" to exit, or just leave blank to skip; '
-              'hit Enter for a new line, hit Enter twice to finish the changelog message):'),
+        print 'Enter a changelog message (or "exit" to exit, or just leave blank to skip; ' \
+              'hit Enter for a new line, hit Enter twice to finish the changelog message):'
         sentinel = ''
         changelog_text = '\n'.join(iter(raw_input, sentinel)).strip()
         if changelog_text and changelog_text.lower() == 'exit':
