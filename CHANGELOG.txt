@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.4.0 (2015-10-13)
+------------------
+- Added requirements and documentation.
+
 0.3.0 (2015-10-13)
 ------------------
 - Back-added old changelog message.
