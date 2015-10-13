@@ -5,8 +5,8 @@ quickly, easily, and in a consistent manner. It ensures that the version standar
 across all projects, and minimizes the possible errors that can occur during a release. This documentation is broken
 down into two sections:
 
-* [Using Invoke Release on Existing Projects](#Using-Invoke-Release-on-Existing-Projects)
-* [Integrating Invoke Release into Your Project](#Integrating-Invoke-Release-into-Your-Project)
+* [Using Invoke Release on Existing Projects](#using-invoke-release-on-existing-projects)
+* [Integrating Invoke Release into Your Project](#integrating-invoke-release-into-your-project)
 
 ## Using Invoke Release on Existing Projects
 
