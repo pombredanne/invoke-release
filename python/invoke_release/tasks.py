@@ -77,26 +77,26 @@ def _setup_task(nostash, verbose):
         global __POST_APPLY
         # stash changes before we execute task
         if verbose:
-            print 'stashing changes...'
+            print 'Stashing changes...'
         result = subprocess.check_output(['git', 'stash'])
         if result.startswith('Saved'):
             __POST_APPLY = True
         if verbose:
-            print '...finished stashing changes'
+            print '...Finished stashing changes.'
 
 
 def _cleanup_task(verbose):
     if __POST_APPLY:
         if verbose:
-            print 'un-stashing changes...'
+            print 'Un-stashing changes...'
         subprocess.call(['git', 'stash', 'apply'])
         if verbose:
-            print 'finished un-stashing changes...'
+            print '...Finished un-stashing changes.'
 
 
 def _write_to_version_file(root_directory, release_version, verbose):
     if verbose:
-        print 'writing version to %s...' % (VERSION_FILE, )
+        print 'Writing version to %s...' % (VERSION_FILE, )
 
     version_file = os.path.join(root_directory, VERSION_FILE)
     if not os.path.exists(version_file):
@@ -132,12 +132,12 @@ def _write_to_version_file(root_directory, release_version, verbose):
             version_write.write('\n')
 
     if verbose:
-        print '...finished writing to service.version'
+        print '...Finished writing to %s.version.' % (MODULE_NAME, )
 
 
 def _write_to_changelog(root_directory, release_version, message, verbose):
     if verbose:
-        print 'writing changelog to %s...' % (CHANGELOG_FILENAME, )
+        print 'Writing changelog to %s...' % (CHANGELOG_FILENAME, )
 
     changelog_file = os.path.join(root_directory, CHANGELOG_FILENAME)
     if not os.path.exists(changelog_file):
@@ -164,12 +164,12 @@ def _write_to_changelog(root_directory, release_version, message, verbose):
             changelog_write.write('\n')
 
     if verbose:
-        print '...finished writing to service.version'
+        print '...Finished writing to changelog.'
 
 
 def _tag_branch(release_version, verbose, overwrite=False):
     if verbose:
-        print 'tagging branch...'
+        print 'Tagging branch...'
 
     release_message = RELEASE_MESSAGE_TEMPLATE % (release_version, )
     cmd = ['git', 'tag', '-a', release_version, '-m', release_message]
@@ -180,13 +180,13 @@ def _tag_branch(release_version, verbose, overwrite=False):
         raise ReleaseFailure('Failed tagging branch: %s' % (result, ))
 
     if verbose:
-        print '...finished tagging branch'
+        print '...Finished tagging branch.'
 
 
 def _commit_release_changes(root_directory, release_version, verbose):
     """Commit changes to version file and changelog"""
     if verbose:
-        print 'committing release changes...'
+        print 'Committing release changes...'
 
     version_file = os.path.join(root_directory, VERSION_FILE)
     changelog_file = os.path.join(root_directory, CHANGELOG_FILENAME)
@@ -204,14 +204,14 @@ def _commit_release_changes(root_directory, release_version, verbose):
     )
 
     if verbose:
-        print '...finished releasing changes'
+        print '...Finished releasing changes.'
 
 
 def _push_release_changes(release_version, verbose):
     push = raw_input('push release changes to master? (y/n): ')
     if push == 'y':
         if verbose:
-            print 'pushing changes to master...'
+            print 'Pushing changes to master...'
 
         print subprocess.check_output(
             ['git', 'push', 'origin', 'master']
@@ -221,10 +221,10 @@ def _push_release_changes(release_version, verbose):
             ['git', 'push', 'origin', release_version]
         )
         if verbose:
-            print '...finished pushing changes to master'
+            print '...Finished pushing changes to master.'
     else:
-        print 'not pushing changes to master!'
-        print 'make sure you remember to explicitly push the tag!'
+        print 'Not pushing changes to master!'
+        print 'Make sure you remember to explicitly push the tag!'
 
 
 @task
@@ -238,10 +238,10 @@ def release(verbose=False, nostash=False):
 
     _setup_task(nostash, verbose)
     try:
-        print 'releasing %s...' % (MODULE_DISPLAY_NAME, )
-        print 'current version: %s' % (__version__, )
-        release_version = raw_input('enter a new version (or "exit"): ')
-        if release_version == 'exit':
+        print 'Releasing %s...' % (MODULE_DISPLAY_NAME, )
+        print 'Current version: %s' % (__version__, )
+        release_version = raw_input('Enter a new version (or "exit"): ')
+        if release_version.lower() == 'exit':
             print 'Cancelling release!'
             return
         if not re.match(VERSION_RE, release_version):
@@ -252,7 +252,13 @@ def release(verbose=False, nostash=False):
                     VERSION_RE,
                 )
             )
-        changelog_text = raw_input('changelog message? (or just leave blank to skip): ')
+        print('Enter a changelog message (or "exit" to exit, or just leave blank to skip; '
+              'hit Enter for a new line, hit Enter twice to finish the changelog message):'),
+        sentinel = ''
+        changelog_text = '\n'.join(iter(raw_input, sentinel)).strip()
+        if changelog_text and changelog_text.lower() == 'exit':
+            print 'Cancelling release!'
+            return
         print 'Releasing %s version: %s' % (MODULE_DISPLAY_NAME, release_version, )
         _write_to_version_file(root_directory, release_version, verbose)
         if changelog_text:
