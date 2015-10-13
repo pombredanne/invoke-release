@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.6.0 (2015-10-13)
+------------------
+- Added missing install requirement.
+
 0.5.0 (2015-10-13)
 ------------------
 - Added a version command to the available commands.
