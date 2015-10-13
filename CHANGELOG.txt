@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.3.0 (2015-10-13)
+------------------
+- Back-added old changelog message
+- Improved changelog output format.
+
 0.2.0 (2015-10-13)
 ------------------
 - Created new reusable command-line release tool for Eventbrite libraries and services.
