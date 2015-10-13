@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.5.0 (2015-10-13)
+------------------
+- Added a version command to the available commands.
+- Made significant improvements to documentation.
+
 0.4.0 (2015-10-13)
 ------------------
 - Added requirements and documentation.
