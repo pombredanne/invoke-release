@@ -9,7 +9,8 @@ from invoke import task
 VERSION_RE = r'^\d+\.\d+\.\d+$'
 VERSION_VARIABLE_RE = '^__version__ = \d+\.\d+\.\d+$'
 
-VERSION_VARIABLE_TEMPLATE = "__version__ = '%s'"
+VERSION_INFO_VARIABLE_TEMPLATE = '__version_info__ = %s'
+VERSION_VARIABLE_TEMPLATE = "__version__ = '.'.join(map(str, __version_info__))"
 RELEASE_MESSAGE_TEMPLATE = 'Releasing [unknown] version %s'
 
 MODULE_NAME = 'unknown'
@@ -87,10 +88,10 @@ def _setup_task(nostash, verbose):
 def _cleanup_task(verbose):
     if __POST_APPLY:
         if verbose:
-            print 'unstashing changes...'
+            print 'un-stashing changes...'
         subprocess.call(['git', 'stash', 'apply'])
         if verbose:
-            print 'finished unstashing changes...'
+            print 'finished un-stashing changes...'
 
 
 def _write_to_version_file(root_directory, release_version, verbose):
@@ -105,14 +106,23 @@ def _write_to_version_file(root_directory, release_version, verbose):
 
     with open(version_file, 'r') as version_read:
         output = []
+        version_info_written = False
+        version_info = VERSION_INFO_VARIABLE_TEMPLATE % (tuple(release_version.split('.')), )
         for line in version_read:
-            if line.startswith('__version__'):
-                new_version = re.sub(
-                    line,
-                    VERSION_VARIABLE_RE,
-                    VERSION_VARIABLE_TEMPLATE % (release_version, ),
-                )
-                output.append(new_version)
+            if line.startswith('__version_info__'):
+                output.append(version_info)
+                version_info_written = True
+            elif line.startswith('__version__'):
+                if not version_info_written:
+                    output.append(version_info)
+                # This old version code isn't used anymore, but is kept around for troubleshooting/testing purposes
+                # new_version = re.sub(
+                #     line,
+                #     VERSION_VARIABLE_RE,
+                #     VERSION_VARIABLE_TEMPLATE % (release_version, ),
+                # )
+                # output.append(new_version)
+                output.append(VERSION_VARIABLE_TEMPLATE)
             else:
                 output.append(line.strip())
 
@@ -214,7 +224,7 @@ def _push_release_changes(release_version, verbose):
             print '...finished pushing changes to master'
     else:
         print 'not pushing changes to master!'
-        print 'make sure you remember to explictily push the tag!'
+        print 'make sure you remember to explicitly push the tag!'
 
 
 @task
