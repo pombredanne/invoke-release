@@ -11,7 +11,7 @@ VERSION_VARIABLE_RE = '^__version__ = \d+\.\d+\.\d+$'
 
 VERSION_INFO_VARIABLE_TEMPLATE = '__version_info__ = %s'
 VERSION_VARIABLE_TEMPLATE = "__version__ = '.'.join(map(str, __version_info__))"
-RELEASE_MESSAGE_TEMPLATE = 'Releasing [unknown] version %s'
+RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version %s.'
 
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
@@ -52,7 +52,7 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 
     MODULE_NAME = module_name
     MODULE_DISPLAY_NAME = display_name
-    RELEASE_MESSAGE_TEMPLATE = 'Releasing %s version %%s' % (MODULE_DISPLAY_NAME, )
+    RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
 
     if python_directory:
         PYTHON_DIRECTORY = python_directory
@@ -107,7 +107,7 @@ def _write_to_version_file(root_directory, release_version, verbose):
     with open(version_file, 'r') as version_read:
         output = []
         version_info_written = False
-        version_info = VERSION_INFO_VARIABLE_TEMPLATE % (tuple(release_version.split('.')), )
+        version_info = VERSION_INFO_VARIABLE_TEMPLATE % (tuple([int(v) for v in release_version.split('.')]), )
         for line in version_read:
             if line.startswith('__version_info__'):
                 output.append(version_info)
@@ -147,14 +147,16 @@ def _write_to_changelog(root_directory, release_version, message, verbose):
 
     with open(changelog_file, 'r') as changelog_read:
         output = []
+        wrote_new_message = False
         for line in changelog_read:
             # Find the title underline
-            if re.search('^=+$', line):
+            if not wrote_new_message and re.search('^=+$', line):
                 output.append(line.strip())
                 output.append('')
                 output.append('%s (%s)' % (release_version, datetime.datetime.now().strftime('%Y-%m-%d'), ))
                 output.append('------------------')
                 output.append(message)
+                wrote_new_message = True
             else:
                 output.append(line.strip())
 
