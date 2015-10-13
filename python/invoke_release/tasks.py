@@ -224,7 +224,8 @@ def _push_release_changes(release_version, verbose):
             print '...Finished pushing changes to master.'
     else:
         print 'Not pushing changes to master!'
-        print 'Make sure you remember to explicitly push the tag!'
+        print 'Make sure you remember to explicitly push the tag, or ' \
+              'revert your local changes if you are trying to cancel!'
 
 
 @task
