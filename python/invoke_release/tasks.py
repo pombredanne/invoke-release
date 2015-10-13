@@ -23,12 +23,11 @@ CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
 
 PARAMETERS_CONFIGURED = False
 
-
 __POST_APPLY = False
-
 
 __all__ = [
     'configure_release_parameters',
+    'version',
     'release',
     'rollback_release',
 ]
@@ -36,30 +35,6 @@ __all__ = [
 
 class ReleaseFailure(Exception):
     """Exception raised when something caused the release to fail"""
-
-
-def configure_release_parameters(module_name, display_name, python_directory=None):
-    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, PYTHON_DIRECTORY, VERSION_FILE
-    global PARAMETERS_CONFIGURED
-
-    if PARAMETERS_CONFIGURED:
-        raise ReleaseFailure('Cannot call configure_release_parameters more than once.')
-
-    if not module_name:
-        raise ValueError('module_name is required')
-    if not display_name:
-        raise ValueError('display_name is required')
-
-    MODULE_NAME = module_name
-    MODULE_DISPLAY_NAME = display_name
-    RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
-
-    if python_directory:
-        PYTHON_DIRECTORY = python_directory
-
-    VERSION_FILE = '%s/%s/version.py' % (PYTHON_DIRECTORY, MODULE_NAME, )
-
-    PARAMETERS_CONFIGURED = True
 
 
 def _get_root_directory():
@@ -233,6 +208,42 @@ def _push_release_changes(release_version, verbose):
               'revert your local changes if you are trying to cancel!'
 
 
+def configure_release_parameters(module_name, display_name, python_directory=None):
+    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, PYTHON_DIRECTORY, VERSION_FILE
+    global PARAMETERS_CONFIGURED
+
+    if PARAMETERS_CONFIGURED:
+        raise ReleaseFailure('Cannot call configure_release_parameters more than once.')
+
+    if not module_name:
+        raise ValueError('module_name is required')
+    if not display_name:
+        raise ValueError('display_name is required')
+
+    MODULE_NAME = module_name
+    MODULE_DISPLAY_NAME = display_name
+    RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
+
+    if python_directory:
+        PYTHON_DIRECTORY = python_directory
+    sys.path.insert(0, os.path.join(_get_root_directory(), PYTHON_DIRECTORY))
+
+    VERSION_FILE = '%s/%s/version.py' % (PYTHON_DIRECTORY, MODULE_NAME, )
+
+    PARAMETERS_CONFIGURED = True
+
+
+@task
+def version():
+    """
+    Prints the "Invoke Release" version and the version of the current project.
+    """
+    from invoke_release.version import __version__
+    print 'Invoke Release %s' % (__version__, )
+    project_version = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
+    print '%s %s' % (MODULE_DISPLAY_NAME, project_version, )
+
+
 @task(help={
     'verbose': 'Specify this switch to include verbose debug information in the command output.',
     'no-stash': 'Specify this switch to disable stashing any uncommitted changes (by default, changes that have '
@@ -246,7 +257,6 @@ def release(verbose=False, no_stash=False):
         raise ReleaseFailure('Cannot invoke release before calling configure_release_parameters.')
 
     root_directory = _get_root_directory()
-    sys.path.insert(0, os.path.join(root_directory, PYTHON_DIRECTORY))
     __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
 
     _setup_task(no_stash, verbose)

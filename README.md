@@ -16,11 +16,15 @@ If you need to specify an exact version, you can use a tag (replacing the tag na
 $ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.4.0
 ```
 
-You can confirm that the project and its requirements were successfully installed by checking the version:
+You can confirm that the project and its requirements were successfully installed by checking the version (this
+must be executed from the home directory of the project that already has Invoke Release support):
 
 ```
 $ invoke --version
 Invoke 0.11.1
+$ invoke version
+Invoke Release 0.4.0
+EB Common 1.8.2
 ```
 
 Once installed, all you have to do is execute it from the project's home directory and follow
