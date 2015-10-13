@@ -1,2 +1,9 @@
 Changelog
 =========
+
+0.2.0 (2015-10-13)
+------------------
+- Created new reusable command-line release tool for Eventbrite libraries and services.
+- Improved language, spelling, and grammar on output messages.
+- Added support for additional exit points and multi-line changelog messages.
+- Fixed bugs from version 0.1.0.
