@@ -21,7 +21,7 @@ $ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
 If you need to specify an exact version, you can use a tag (replacing the tag name as necessary):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.4.0
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.7.0
 ```
 
 You can confirm that the project and its requirements were successfully installed by checking the version (this
@@ -31,7 +31,7 @@ must be executed from the home directory of the project that already has Invoke 
 $ invoke --version
 Invoke 0.11.1
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 0.4.0
+Eventbrite Command Line Release Tools ("Invoke Release") 0.7.0
 EB Common 1.8.2
 ```
 
@@ -92,5 +92,14 @@ configure_release_parameters(
 )
 ```
 
-Commit these changes to your project and push to remote master. You are now ready to run Invoke Release using
-the steps in the previous section.
+Once you've completed the necessary integration step, execute the following command (from the project root directory)
+and verify the output. Address any errors that you see.
+
+```
+$ invoke version
+Eventbrite Command Line Release Tools ("Invoke Release") 0.7.0
+EB Common 1.8.2
+```
+
+Finally, commit these changes to your project and push to remote master. You are now ready to run Invoke Release using
+the steps in [the previous section](#using-invoke-release-on-existing-projects).
