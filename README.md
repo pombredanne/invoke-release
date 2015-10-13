@@ -7,23 +7,34 @@ you first need to install it. To do so, run the following command _on your devel
 or a Docker container).
 
 ```
-$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
 ```
 
 If you need to specify an exact version, you can use a tag (replacing the tag name as necessary):
 
 ```
-$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.4.0
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.4.0
 ```
 
-Then, once installed, all you have to do is execute it from the project's home directory and follow
+You can confirm that the project and its requirements were successfully installed by checking the version:
+
+```$ invoke --version
+Invoke 0.11.1
+```
+
+Once installed, all you have to do is execute it from the project's home directory and follow
 the on-screen instructions:
 
 ```
 $ invoke release
 ```
 
-It's that easy!
+It's that easy! You can also view a list of commands or view help for a command as follows:
+
+```
+$ invoke --list
+$ invoke --help release
+```
 
 ## Integrating Invoke Release into Your Project
 

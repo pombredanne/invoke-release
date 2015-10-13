@@ -72,8 +72,8 @@ def _get_root_directory():
     return root_directory
 
 
-def _setup_task(nostash, verbose):
-    if not nostash:
+def _setup_task(no_stash, verbose):
+    if not no_stash:
         global __POST_APPLY
         # stash changes before we execute task
         if verbose:
@@ -233,8 +233,15 @@ def _push_release_changes(release_version, verbose):
               'revert your local changes if you are trying to cancel!'
 
 
-@task
-def release(verbose=False, nostash=False):
+@task(help={
+    'verbose': 'Specify this switch to include verbose debug information in the command output.',
+    'no-stash': 'Specify this switch to disable stashing any uncommitted changes (by default, changes that have '
+                'not been committed are stashed before the release is executed).',
+})
+def release(verbose=False, no_stash=False):
+    """
+    Increases the version, adds a changelog message, and tags a new version of this project.
+    """
     if not PARAMETERS_CONFIGURED:
         raise ReleaseFailure('Cannot invoke release before calling configure_release_parameters.')
 
@@ -242,7 +249,7 @@ def release(verbose=False, nostash=False):
     sys.path.insert(0, os.path.join(root_directory, PYTHON_DIRECTORY))
     __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
 
-    _setup_task(nostash, verbose)
+    _setup_task(no_stash, verbose)
     try:
         print 'Releasing %s...' % (MODULE_DISPLAY_NAME, )
         print 'Current version: %s' % (__version__, )
@@ -278,6 +285,9 @@ def release(verbose=False, nostash=False):
 
 @task
 def rollback_release():
+    """
+    Not yet implemented.
+    """
     # undo release, not sure if we need this yet
     # if you want to rollback a release and haven't pushed to master:
     #   $ git reset --hard HEAD^
