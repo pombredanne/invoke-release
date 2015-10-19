@@ -16,7 +16,6 @@ RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version %s.'
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
 
-PYTHON_DIRECTORY = 'python'
 VERSION_FILE = 'python/unknown/version.py'
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
 CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
@@ -209,8 +208,7 @@ def _push_release_changes(release_version, verbose):
 
 
 def configure_release_parameters(module_name, display_name, python_directory=None):
-    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, PYTHON_DIRECTORY, VERSION_FILE
-    global PARAMETERS_CONFIGURED
+    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILE, PARAMETERS_CONFIGURED
 
     if PARAMETERS_CONFIGURED:
         raise ReleaseFailure('Cannot call configure_release_parameters more than once.')
@@ -225,10 +223,10 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
     RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
 
     if python_directory:
-        PYTHON_DIRECTORY = python_directory
-    sys.path.insert(0, os.path.join(_get_root_directory(), PYTHON_DIRECTORY))
-
-    VERSION_FILE = '%s/%s/version.py' % (PYTHON_DIRECTORY, MODULE_NAME, )
+        sys.path.insert(0, os.path.join(_get_root_directory(), python_directory))
+        VERSION_FILE = '%s/%s/version.py' % (python_directory, MODULE_NAME, )
+    else:
+        VERSION_FILE = '%s/version.py' % (MODULE_NAME, )
 
     PARAMETERS_CONFIGURED = True
 
@@ -242,6 +240,10 @@ def version():
     print 'Eventbrite Command Line Release Tools ("Invoke Release") %s' % (__version__, )
     project_version = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
     print '%s %s' % (MODULE_DISPLAY_NAME, project_version, )
+
+    if not os.path.isfile(VERSION_FILE):
+        print 'ERROR: Version file %s was not found! This project is not correctly configured to use ' \
+              '`invoke release`!' % os.path.join(_get_root_directory(), VERSION_FILE)
 
 
 @task(help={

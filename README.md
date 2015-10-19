@@ -69,9 +69,11 @@ configure_release_parameters(
 )
 ```
 
-This assumes that the default Python source directory in your project is `python/` relative to the
-project root directory. This is often true only for libraries. For services or other projects not meeting this
-pattern, you can use the optional `python_directory` function argument to customize this.
+This assumes that the default Python source directory in your project is the same as the `module_name`, relative to the
+project root directory. This is true for most Eventbrite services and some libraries. For most libraries, and some
+services not meeting this pattern, you must use the optional `python_directory` function argument to customize this.
+If your module directory is `python/my_project_python_home_module`, you'd pass "my_project_python_home_module" as the
+`module_name` and "python" as the `python_directory`.
 
 For example, here are the contents of this file for EB Common and Geo Service, respectively:
 
@@ -79,7 +81,8 @@ For example, here are the contents of this file for EB Common and Geo Service, r
 from invoke_release.tasks import *
 configure_release_parameters(
     module_name='ebcommon',
-    display_name='EB Common'
+    display_name='EB Common',
+    python_directory='python'
 )
 ```
 
@@ -88,7 +91,6 @@ from invoke_release.tasks import *
 configure_release_parameters(
     module_name='geo_service',
     display_name='Geo Service',
-    python_directory='geo_service'
 )
 ```
 
