@@ -49,6 +49,17 @@ $ invoke --list
 $ invoke --help release
 ```
 
+One of the available commands is `rollback_release`:
+
+```
+$ invoke rollback_release
+```
+
+However, this command should be used with extreme caution. Releases that have only been committed and tagged locally,
+and not pushed, are safe to revert at any time. However, release commits and tags that have been pushed to origin
+should only be rolled back in the direst of circumstances. If any commits have occurred since the release, this
+command cannot be used.
+
 ## Integrating Invoke Release into Your Project
 
 If you have created a new Eventbrite service or library, or you're improving an old one without Invoke Release support,
