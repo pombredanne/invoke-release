@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.0.0 (2015-10-19)
+------------------
+- Added support for rolling back between commit and push stages when executing release.
+- Added support for executing rollback_release.
+- Improved output formatting.
+- Included color support for different output message types.
+- Added check to ensure that new version number is greater than existing version number during release.
+
 0.7.0 (2015-10-19)
 ------------------
 - Fixed a bug in `python_directory` customization.
