@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.7.0 (2015-10-19)
+------------------
+- Fixed a bug in `python_directory` customization.
+
 0.6.0 (2015-10-13)
 ------------------
 - Added missing install requirement.
