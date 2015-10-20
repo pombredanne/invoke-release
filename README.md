@@ -73,8 +73,8 @@ $ invoke rollback_release
 ```
 
 However, this command should be used with extreme caution. Releases that have only been committed and tagged locally,
-and not pushed, are safe to revert at any time. However, release commits and tags that have been pushed to origin
-should only be rolled back in the direst of circumstances. If any commits have occurred since the release, this
+and not pushed, are safe to revert at any time. On the other hand, release commits and tags that have been pushed to
+origin should only be rolled back in the direst of circumstances. If any commits have occurred since the release, this
 command cannot be used.
 
 ## Integrating Invoke Release into Your Project
