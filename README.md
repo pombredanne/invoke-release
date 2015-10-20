@@ -3,40 +3,57 @@
 The Invoke Release tools are a set of command line tools that help Eventbrite engineers release services and libraries
 quickly, easily, and in a consistent manner. It ensures that the version standards for our projects are the same
 across all projects, and minimizes the possible errors that can occur during a release. This documentation is broken
-down into two sections:
+down into three sections:
 
+* [Installing Invoke Release Tools](#installing-invoke-release-tools)
 * [Using Invoke Release on Existing Projects](#using-invoke-release-on-existing-projects)
 * [Integrating Invoke Release into Your Project](#integrating-invoke-release-into-your-project)
 
-## Using Invoke Release on Existing Projects
+**NOTE:** If you have previously installed `invoke`, this, alone, is not enough to use the Eventbrite Command Line
+Release Tools. Be sure to read the first section below on installing these tools.
 
-If a project already has support for Invoke Release, using it is easy. If you've never run Invoke Release before,
-you first need to install it. To do so, run the following command _on your development machine_ (**not** within Vagrant
-or a Docker container).
+## Installing Invoke Release Tools
+
+Before you can integrate Invoke Release into your project **or** use it on a project into which it has already been
+integrated, you need to install the tools. Installation is easy. Just run the following command _on your development
+machine_ (**not** within Vagrant or a Docker container).
 
 ```
 $ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
 ```
 
-If you need to specify an exact version, you can use a tag (replacing the tag name as necessary):
+This will install the Eventbrite Command Line Release Tools and their only dependency, `invoke`. (You do not need to
+manually/separately install `invoke`.) If you need to specify an exact version of the tools, you can use a tag
+(replacing the tag name as necessary):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@0.7.0
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.0.0
 ```
 
-You can confirm that the project and its requirements were successfully installed by checking the version (this
-must be executed from the home directory of the project that already has Invoke Release support):
+You can confirm that the project and its requirements were successfully installed by checking the version:
+
+```
+$ invoke --version
+Invoke 0.11.1
+```
+
+## Using Invoke Release on Existing Projects
+
+If a project already has support for Invoke Release, using it is easy. First, check that the integration is working
+properly and that the tools are installed on your machine:
 
 ```
 $ invoke --version
 Invoke 0.11.1
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 0.7.0
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.0
 EB Common 1.8.2
 ```
 
-Once installed, all you have to do is execute it from the project's home directory and follow
-the on-screen instructions:
+If the `invoke` command is not working, or you get module errors about `invoke_release.tasks`, see
+[Installing Invoke Release Tools](#installing-invoke-release-tools). Once you have confirmed that the tools are
+working properly, all you have to do is execute it from the project's home directory and follow the on-screen
+instructions:
 
 ```
 $ invoke release
@@ -63,7 +80,8 @@ command cannot be used.
 ## Integrating Invoke Release into Your Project
 
 If you have created a new Eventbrite service or library, or you're improving an old one without Invoke Release support,
-integrating Invoke Release is easy.
+integrating Invoke Release is easy. Be sure to read [Installing Invoke Release Tools](#installing-invoke-release-tools)
+if you have not yet installed the Eventbrite Command Line Release Tools or if the `invoke` command is not working.
 
 As a prerequisite, your Python home module _must_ have a module named `version.py` with, at least, a `__version__`
 variable defined. This variable must also be imported in the `__init__.py` file of the home module. For an example
@@ -110,7 +128,7 @@ and verify the output. Address any errors that you see.
 
 ```
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 0.7.0
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.0
 EB Common 1.8.2
 ```
 
