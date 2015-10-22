@@ -15,8 +15,14 @@ Release Tools. Be sure to read the first section below on installing these tools
 ## Installing Invoke Release Tools
 
 Before you can integrate Invoke Release into your project **or** use it on a project into which it has already been
-integrated, you need to install the tools. Installation is easy. Just run the following command _on your development
-machine_ (**not** within Vagrant or a Docker container).
+integrated, you need to install the tools. Installation is easy. Just running `devtools_update` _on your development
+machine_ (**not** within Vagrant or a Docker container) will ensure that you have the latest version of the release
+tools installed. (If you haven't run `devtools_update` since 2015-10-22, you may need to run this command twice—once to
+get the latest devtools helpers, and a second time to actually install the release tools.)
+
+If, for some reason, you need to manually install the release tools (for example, to use master instead of the latest
+tag, or to use the release tools within Vagrant/Docker instead of on your local machine), that's easy, too. Just run
+the following command:
 
 ```
 $ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
@@ -27,7 +33,7 @@ manually/separately install `invoke`.) If you need to specify an exact version o
 (replacing the tag name as necessary):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.0.0
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.0.1
 ```
 
 You can confirm that the project and its requirements were successfully installed by checking the version:
@@ -46,7 +52,7 @@ properly and that the tools are installed on your machine:
 $ invoke --version
 Invoke 0.11.1
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 1.0.0
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.1
 EB Common 1.8.2
 ```
 
@@ -128,7 +134,7 @@ and verify the output. Address any errors that you see.
 
 ```
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 1.0.0
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.1
 EB Common 1.8.2
 ```
 
