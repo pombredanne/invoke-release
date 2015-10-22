@@ -139,7 +139,7 @@ def _write_to_version_file(root_directory, release_version, verbose):
                 # output.append(new_version)
                 output.append(VERSION_VARIABLE_TEMPLATE)
             else:
-                output.append(line.strip())
+                output.append(line.rstrip())
 
     with open(version_file, 'w') as version_write:
         for line in output:
@@ -174,7 +174,7 @@ def _write_to_changelog(root_directory, release_version, message, verbose):
 
                 wrote_new_message = True
             else:
-                output.append(line.strip())
+                output.append(line.rstrip())
 
     with open(changelog_file, 'w') as changelog_write:
         for line in output:
