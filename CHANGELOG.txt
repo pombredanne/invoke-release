@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.0.1 (2015-10-22)
+------------------
+- Improved the main documentation.
+- Added flake8 ignore instructions.
+- Changed the version and changelog writers to not strip whitespace on the beginning of lines.
+
 1.0.0 (2015-10-19)
 ------------------
 - Added support for rolling back between commit and push stages when executing release.
