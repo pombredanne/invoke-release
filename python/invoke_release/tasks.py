@@ -270,6 +270,20 @@ def _get_commit_subject(commit_hash, verbose):
     return message
 
 
+def _does_tag_exist_locally(release_version, verbose):
+    _verbose_output(verbose, 'Checking if tag %s exists locally...', release_version)
+
+    result = subprocess.check_output(
+        ['git', 'tag', '--list', release_version]
+    ).strip()
+
+    exists = release_version in result
+
+    _verbose_output(verbose, 'Result of exists check for tag %s is %s.', release_version, exists)
+
+    return exists
+
+
 def _is_tag_on_remote(release_version, verbose):
     _verbose_output(verbose, 'Checking if tag %s was pushed to remote...', release_version)
 
@@ -354,6 +368,49 @@ def _revert_remote_commit(release_version, commit_hash, verbose):
     _verbose_output(verbose, 'Finished rolling back release commit.')
 
 
+def _import_version_or_exit():
+    try:
+        return __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
+    except ImportError, e:
+        import pprint
+        _error_output_exit(
+            'Could not import `__version__` from `%s.version`. Error was "ImportError: %s." Path is:\n%s',
+            MODULE_NAME, e.message, pprint.pformat(sys.path)
+        )
+    except AttributeError, e:
+        _error_output_exit(
+            'Could not retrieve `__version__` from imported module. Error was "%s."', e.message
+        )
+
+
+def _ensure_files_exist(exit_on_failure):
+    failure = False
+
+    if not os.path.isfile(VERSION_FILENAME):
+        _error_output(
+            'Version file %s was not found! This project is not correctly configured to use `invoke release`!',
+            VERSION_FILENAME
+        )
+        failure = True
+
+    if not os.path.isfile(CHANGELOG_FILENAME):
+        _error_output(
+            'Changelog file %s was not found! This project is not correctly configured to use `invoke release`!',
+            CHANGELOG_FILENAME
+        )
+        failure = True
+
+    if exit_on_failure and failure:
+        sys.exit(1)
+
+
+def _ensure_configured(command):
+    if not PARAMETERS_CONFIGURED:
+        _error_output_exit('Cannot `invoke %s` before calling `configure_release_parameters`.', command)
+
+    _ensure_files_exist(True)
+
+
 def configure_release_parameters(module_name, display_name, python_directory=None):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
     global PARAMETERS_CONFIGURED
@@ -392,17 +449,14 @@ def version():
     Prints the "Invoke Release" version and the version of the current project.
     """
     if not PARAMETERS_CONFIGURED:
-        _error_output_exit('Cannot invoke version before calling configure_release_parameters.')
+        _error_output_exit('Cannot `invoke version` before calling `configure_release_parameters`.')
 
     from invoke_release.version import __version__
     _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") %s', __version__)
 
-    project_version = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
-    _standard_output('%s %s', MODULE_DISPLAY_NAME, project_version)
+    _ensure_files_exist(False)
 
-    if not os.path.isfile(VERSION_FILENAME):
-        _error_output(('Version file %s was not found! This project is not correctly configured to use '
-                       '`invoke release`!') % (VERSION_FILENAME, ))
+    _standard_output('%s %s', MODULE_DISPLAY_NAME, _import_version_or_exit())
 
 
 @task(help={
@@ -414,15 +468,15 @@ def release(verbose=False, no_stash=False):
     """
     Increases the version, adds a changelog message, and tags a new version of this project.
     """
-    if not PARAMETERS_CONFIGURED:
-        _error_output_exit('Cannot invoke release before calling configure_release_parameters.')
+    _ensure_configured('release')
 
-    __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
+    __version__ = _import_version_or_exit()
 
     _setup_task(no_stash, verbose)
     try:
         _standard_output('Releasing %s...', MODULE_DISPLAY_NAME)
         _standard_output('Current version: %s', __version__)
+
         release_version = _prompt('Enter a new version (or "exit"):')
         if not release_version or release_version.lower() == 'exit':
             _standard_output('Canceling release!')
@@ -435,6 +489,11 @@ def release(verbose=False, no_stash=False):
             raise ReleaseFailure(
                 'New version number %s is not greater than current version %s.' % (release_version, __version__, )
             )
+        if _does_tag_exist_locally(release_version, verbose) or _is_tag_on_remote(release_version, verbose):
+            raise ReleaseFailure(
+                'Tag %s already exists locally or remotely (or both). Cannot create version.' % (release_version, )
+            )
+
         _print_output(COLOR_WHITE, 'Enter a changelog message (or "exit" to exit, or just leave blank to skip; '
                                    'hit Enter for a new line, hit Enter twice to finish the changelog message):\n')
         sentinel = ''
@@ -442,6 +501,7 @@ def release(verbose=False, no_stash=False):
         if changelog_text and changelog_text.lower() == 'exit':
             _standard_output('Canceling release!')
             return
+
         _standard_output('Releasing %s version: %s', MODULE_DISPLAY_NAME, release_version)
         _write_to_version_file(release_version, verbose)
         if changelog_text:
@@ -468,10 +528,9 @@ def rollback_release(verbose=False, no_stash=False):
     yet been pushed to remote, but extreme caution should be exercised when invoking this after the release has
     been pushed to remote.
     """
-    if not PARAMETERS_CONFIGURED:
-        _error_output_exit('Cannot invoke rollback_release before calling configure_release_parameters.')
+    _ensure_configured('rollback_release')
 
-    __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
+    __version__ = _import_version_or_exit()
 
     _setup_task(no_stash, verbose)
     try:
