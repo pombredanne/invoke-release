@@ -424,7 +424,7 @@ def release(verbose=False, no_stash=False):
         _standard_output('Releasing %s...', MODULE_DISPLAY_NAME)
         _standard_output('Current version: %s', __version__)
         release_version = _prompt('Enter a new version (or "exit"):')
-        if release_version.lower() == 'exit':
+        if not release_version or release_version.lower() == 'exit':
             _standard_output('Canceling release!')
             return
         if not re.match(VERSION_RE, release_version):
