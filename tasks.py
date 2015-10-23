@@ -1,7 +1,8 @@
+import os
 import sys
 
 # Let's eat our own dog food and make sure this works.
-sys.path.insert(0, 'python')
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'python')))
 from invoke_release.tasks import *  # flake8: noqa
 
 configure_release_parameters(

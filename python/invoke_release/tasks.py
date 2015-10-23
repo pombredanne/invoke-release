@@ -17,7 +17,7 @@ RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version %s.'
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
 
-VERSION_FILE = 'python/unknown/version.py'
+VERSION_FILENAME = 'python/unknown/version.py'
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
 CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
 
@@ -110,16 +110,15 @@ def _cleanup_task(verbose):
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
 
-def _write_to_version_file(root_directory, release_version, verbose):
-    _verbose_output(verbose, 'Writing version to %s...', VERSION_FILE)
+def _write_to_version_file(release_version, verbose):
+    _verbose_output(verbose, 'Writing version to %s...', VERSION_FILENAME)
 
-    version_file = os.path.join(root_directory, VERSION_FILE)
-    if not os.path.exists(version_file):
+    if not os.path.exists(VERSION_FILENAME):
         raise ReleaseFailure(
-            'Failed to find version file: %s' % (version_file, )
+            'Failed to find version file: %s' % (VERSION_FILENAME, )
         )
 
-    with open(version_file, 'r') as version_read:
+    with open(VERSION_FILENAME, 'r') as version_read:
         output = []
         version_info_written = False
         version_info = VERSION_INFO_VARIABLE_TEMPLATE % (tuple([int(v) for v in release_version.split('.')]), )
@@ -141,7 +140,7 @@ def _write_to_version_file(root_directory, release_version, verbose):
             else:
                 output.append(line.rstrip())
 
-    with open(version_file, 'w') as version_write:
+    with open(VERSION_FILENAME, 'w') as version_write:
         for line in output:
             version_write.write(line)
             version_write.write('\n')
@@ -149,16 +148,15 @@ def _write_to_version_file(root_directory, release_version, verbose):
     _verbose_output(verbose, 'Finished writing to %s.version.', MODULE_NAME)
 
 
-def _write_to_changelog(root_directory, release_version, message, verbose):
+def _write_to_changelog(release_version, message, verbose):
     _verbose_output(verbose, 'Writing changelog to %s...', CHANGELOG_FILENAME)
 
-    changelog_file = os.path.join(root_directory, CHANGELOG_FILENAME)
-    if not os.path.exists(changelog_file):
+    if not os.path.exists(CHANGELOG_FILENAME):
         raise ReleaseFailure(
-            'Failed to find changelog file: %s' % (changelog_file, )
+            'Failed to find changelog file: %s' % (CHANGELOG_FILENAME, )
         )
 
-    with open(changelog_file, 'r') as changelog_read:
+    with open(CHANGELOG_FILENAME, 'r') as changelog_read:
         output = []
         wrote_new_message = False
         for line in changelog_read:
@@ -176,7 +174,7 @@ def _write_to_changelog(root_directory, release_version, message, verbose):
             else:
                 output.append(line.rstrip())
 
-    with open(changelog_file, 'w') as changelog_write:
+    with open(CHANGELOG_FILENAME, 'w') as changelog_write:
         for line in output:
             changelog_write.write(line)
             changelog_write.write('\n')
@@ -198,13 +196,11 @@ def _tag_branch(release_version, verbose, overwrite=False):
     _verbose_output(verbose, 'Finished tagging branch.')
 
 
-def _commit_release_changes(root_directory, release_version, verbose):
+def _commit_release_changes(release_version, verbose):
     _verbose_output(verbose, 'Committing release changes...')
 
-    version_file = os.path.join(root_directory, VERSION_FILE)
-    changelog_file = os.path.join(root_directory, CHANGELOG_FILENAME)
     result = subprocess.check_output(
-        ['git', 'add', version_file, changelog_file],
+        ['git', 'add', VERSION_FILENAME, CHANGELOG_FILENAME],
     )
     if result:
         raise ReleaseFailure(
@@ -219,7 +215,7 @@ def _commit_release_changes(root_directory, release_version, verbose):
     _verbose_output(verbose, 'Finished releasing changes.')
 
 
-def _push_release_changes(root_directory, release_version, verbose):
+def _push_release_changes(release_version, verbose):
     try:
         push = raw_input('Push release changes and tag to master? (y/N/rollback): ').strip().lower()
     except KeyboardInterrupt:
@@ -240,7 +236,7 @@ def _push_release_changes(root_directory, release_version, verbose):
     elif push == 'rollback':
         _standard_output('Rolling back local release commit and tag...')
 
-        _delete_last_commit(root_directory, verbose)
+        _delete_last_commit(verbose)
         _delete_local_tag(release_version, verbose)
 
         _verbose_output(verbose, 'Finished rolling back local release commit.')
@@ -322,20 +318,17 @@ def _delete_remote_tag(tag_name, verbose):
     _verbose_output(verbose, 'Finished deleting remote tag %s.', tag_name)
 
 
-def _delete_last_commit(root_directory, verbose):
+def _delete_last_commit(verbose):
     _verbose_output(verbose, 'Deleting last commit, assumed to be for version and changelog files...')
-
-    version_file = os.path.join(root_directory, VERSION_FILE)
-    changelog_file = os.path.join(root_directory, CHANGELOG_FILENAME)
 
     print subprocess.check_output(
         ['git', 'reset', '--soft', 'HEAD~1']
     )
     print subprocess.check_output(
-        ['git', 'reset', 'HEAD', version_file, changelog_file],
+        ['git', 'reset', 'HEAD', VERSION_FILENAME, CHANGELOG_FILENAME],
     )
     print subprocess.check_output(
-        ['git', 'checkout', '--', version_file, changelog_file],
+        ['git', 'checkout', '--', VERSION_FILENAME, CHANGELOG_FILENAME],
     )
 
     _verbose_output(verbose, 'Finished deleting last commit.')
@@ -362,7 +355,8 @@ def _revert_remote_commit(release_version, commit_hash, verbose):
 
 
 def configure_release_parameters(module_name, display_name, python_directory=None):
-    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILE, PARAMETERS_CONFIGURED
+    global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
+    global PARAMETERS_CONFIGURED
 
     if PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot call configure_release_parameters more than once.')
@@ -376,11 +370,18 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
     MODULE_DISPLAY_NAME = display_name
     RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
 
+    root_directory = os.path.normpath(_get_root_directory())
+    CHANGELOG_FILENAME = os.path.join(root_directory, 'CHANGELOG.txt')
+
     if python_directory:
-        sys.path.insert(0, os.path.join(_get_root_directory(), python_directory))
-        VERSION_FILE = '%s/%s/version.py' % (python_directory, MODULE_NAME, )
+        import_directory = os.path.normpath(os.path.join(root_directory, python_directory))
+        VERSION_FILENAME = os.path.join(root_directory, '%s/%s/version.py' % (python_directory, MODULE_NAME, ))
     else:
-        VERSION_FILE = '%s/version.py' % (MODULE_NAME, )
+        import_directory = root_directory
+        VERSION_FILENAME = os.path.join(root_directory, '%s/version.py' % (MODULE_NAME, ))
+
+    if import_directory not in sys.path:
+        sys.path.insert(0, import_directory)
 
     PARAMETERS_CONFIGURED = True
 
@@ -399,9 +400,9 @@ def version():
     project_version = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
     _standard_output('%s %s', MODULE_DISPLAY_NAME, project_version)
 
-    if not os.path.isfile(VERSION_FILE):
+    if not os.path.isfile(VERSION_FILENAME):
         _error_output(('Version file %s was not found! This project is not correctly configured to use '
-                       '`invoke release`!') % os.path.join(_get_root_directory(), VERSION_FILE))
+                       '`invoke release`!') % (VERSION_FILENAME, ))
 
 
 @task(help={
@@ -416,7 +417,6 @@ def release(verbose=False, no_stash=False):
     if not PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot invoke release before calling configure_release_parameters.')
 
-    root_directory = _get_root_directory()
     __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
 
     _setup_task(no_stash, verbose)
@@ -443,12 +443,12 @@ def release(verbose=False, no_stash=False):
             _standard_output('Canceling release!')
             return
         _standard_output('Releasing %s version: %s', MODULE_DISPLAY_NAME, release_version)
-        _write_to_version_file(root_directory, release_version, verbose)
+        _write_to_version_file(release_version, verbose)
         if changelog_text:
-            _write_to_changelog(root_directory, release_version, changelog_text, verbose)
-        _commit_release_changes(root_directory, release_version, verbose)
+            _write_to_changelog(release_version, changelog_text, verbose)
+        _commit_release_changes(release_version, verbose)
         _tag_branch(release_version, verbose)
-        _push_release_changes(root_directory, release_version, verbose)
+        _push_release_changes(release_version, verbose)
         _standard_output('Release process is complete.')
     except ReleaseFailure, e:
         _error_output(e.message)
@@ -471,7 +471,6 @@ def rollback_release(verbose=False, no_stash=False):
     if not PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot invoke rollback_release before calling configure_release_parameters.')
 
-    root_directory = _get_root_directory()
     __version__ = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__']).__version__
 
     _setup_task(no_stash, verbose)
@@ -500,7 +499,7 @@ def rollback_release(verbose=False, no_stash=False):
                     if revert == 'y':
                         _revert_remote_commit(__version__, commit_hash, verbose)
                 else:
-                    _delete_last_commit(root_directory, verbose)
+                    _delete_last_commit(verbose)
             else:
                 _standard_output('The commit was not reverted.')
             _standard_output('Release rollback is complete.')
