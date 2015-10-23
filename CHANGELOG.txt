@@ -1,6 +1,10 @@
 Changelog
 =========
 
+1.0.2 (2015-10-23)
+------------------
+No release version exits nicely instead of erroring.
+
 1.0.1 (2015-10-22)
 ------------------
 - Improved the main documentation.
