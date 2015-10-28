@@ -17,6 +17,9 @@ RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version %s.'
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
 
+RELEASE_PLUGINS = []
+
+ROOT_DIRECTORY = ''
 VERSION_FILENAME = 'python/unknown/version.py'
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
 CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
@@ -39,6 +42,10 @@ COLOR_GREEN_BOLD = '32;1'
 COLOR_RED_BOLD = '31;1'
 COLOR_GRAY_LIGHT = '38;5;242'
 COLOR_WHITE = '37;1'
+
+PUSH_RESULT_NO_ACTION = 0
+PUSH_RESULT_PUSHED = 1
+PUSH_RESULT_ROLLBACK = 2
 
 
 class ReleaseFailure(Exception):
@@ -105,7 +112,7 @@ def _cleanup_task(verbose):
     if __POST_APPLY:
         _verbose_output(verbose, 'Un-stashing changes...')
 
-        subprocess.call(['git', 'stash', 'apply'])
+        subprocess.call(['git', 'stash', 'pop'])
 
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
@@ -200,7 +207,7 @@ def _commit_release_changes(release_version, verbose):
     _verbose_output(verbose, 'Committing release changes...')
 
     result = subprocess.check_output(
-        ['git', 'add', VERSION_FILENAME, CHANGELOG_FILENAME],
+        ['git', 'add', VERSION_FILENAME, CHANGELOG_FILENAME] + _get_extra_files_to_commit(),
     )
     if result:
         raise ReleaseFailure(
@@ -233,6 +240,8 @@ def _push_release_changes(release_version, verbose):
         )
 
         _verbose_output(verbose, 'Finished pushing changes to master.')
+
+        return PUSH_RESULT_PUSHED
     elif push == 'rollback':
         _standard_output('Rolling back local release commit and tag...')
 
@@ -240,10 +249,14 @@ def _push_release_changes(release_version, verbose):
         _delete_local_tag(release_version, verbose)
 
         _verbose_output(verbose, 'Finished rolling back local release commit.')
+
+        return PUSH_RESULT_ROLLBACK
     else:
         _standard_output('Not pushing changes to master!')
         _standard_output('Make sure you remember to explicitly push the tag, or '
                          'revert your local changes if you are trying to cancel!')
+
+        return PUSH_RESULT_NO_ACTION
 
 
 def _get_last_commit_hash(verbose):
@@ -335,14 +348,16 @@ def _delete_remote_tag(tag_name, verbose):
 def _delete_last_commit(verbose):
     _verbose_output(verbose, 'Deleting last commit, assumed to be for version and changelog files...')
 
+    extra_files = _get_extra_files_to_commit()
+
     print subprocess.check_output(
         ['git', 'reset', '--soft', 'HEAD~1']
     )
     print subprocess.check_output(
-        ['git', 'reset', 'HEAD', VERSION_FILENAME, CHANGELOG_FILENAME],
+        ['git', 'reset', 'HEAD', VERSION_FILENAME, CHANGELOG_FILENAME] + extra_files,
     )
     print subprocess.check_output(
-        ['git', 'checkout', '--', VERSION_FILENAME, CHANGELOG_FILENAME],
+        ['git', 'checkout', '--', VERSION_FILENAME, CHANGELOG_FILENAME] + extra_files,
     )
 
     _verbose_output(verbose, 'Finished deleting last commit.')
@@ -411,9 +426,59 @@ def _ensure_configured(command):
     _ensure_files_exist(True)
 
 
-def configure_release_parameters(module_name, display_name, python_directory=None):
+def _set_map(function, iterable):
+    ret = set()
+    for i in iterable:
+        r = function(i)
+        if r:
+            if getattr(r, '__iter__', None):
+                ret.update(r)
+            else:
+                ret.add(r)
+    return ret
+
+
+def _get_extra_files_to_commit():
+    return list(_set_map(lambda plugin: plugin.get_extra_files_to_commit(ROOT_DIRECTORY), RELEASE_PLUGINS))
+
+
+def _get_version_errors():
+    return _set_map(lambda plugin: plugin.version_error_check(ROOT_DIRECTORY), RELEASE_PLUGINS)
+
+
+def _pre_release(old_version):
+    for plugin in RELEASE_PLUGINS:
+        plugin.pre_release(ROOT_DIRECTORY, old_version)
+
+
+def _pre_commit(old_version, new_version):
+    for plugin in RELEASE_PLUGINS:
+        plugin.pre_commit(ROOT_DIRECTORY, old_version, new_version)
+
+
+def _pre_push(old_version, new_version):
+    for plugin in RELEASE_PLUGINS:
+        plugin.pre_push(ROOT_DIRECTORY, old_version, new_version)
+
+
+def _post_release(old_version, new_version, pushed):
+    for plugin in RELEASE_PLUGINS:
+        plugin.post_release(ROOT_DIRECTORY, old_version, new_version, pushed)
+
+
+def _pre_rollback(current_version):
+    for plugin in RELEASE_PLUGINS:
+        plugin.pre_rollback(ROOT_DIRECTORY, current_version)
+
+
+def _post_rollback(current_version, rollback_to_version):
+    for plugin in RELEASE_PLUGINS:
+        plugin.post_rollback(ROOT_DIRECTORY, current_version, rollback_to_version)
+
+
+def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
-    global PARAMETERS_CONFIGURED
+    global ROOT_DIRECTORY, RELEASE_PLUGINS, PARAMETERS_CONFIGURED
 
     if PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot call configure_release_parameters more than once.')
@@ -427,18 +492,21 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
     MODULE_DISPLAY_NAME = display_name
     RELEASE_MESSAGE_TEMPLATE = 'Released %s version %%s.' % (MODULE_DISPLAY_NAME, )
 
-    root_directory = os.path.normpath(_get_root_directory())
-    CHANGELOG_FILENAME = os.path.join(root_directory, 'CHANGELOG.txt')
+    ROOT_DIRECTORY = os.path.normpath(_get_root_directory())
+    CHANGELOG_FILENAME = os.path.join(ROOT_DIRECTORY, 'CHANGELOG.txt')
 
     if python_directory:
-        import_directory = os.path.normpath(os.path.join(root_directory, python_directory))
-        VERSION_FILENAME = os.path.join(root_directory, '%s/%s/version.py' % (python_directory, MODULE_NAME, ))
+        import_directory = os.path.normpath(os.path.join(ROOT_DIRECTORY, python_directory))
+        VERSION_FILENAME = os.path.join(ROOT_DIRECTORY, '%s/%s/version.py' % (python_directory, MODULE_NAME, ))
     else:
-        import_directory = root_directory
-        VERSION_FILENAME = os.path.join(root_directory, '%s/version.py' % (MODULE_NAME, ))
+        import_directory = ROOT_DIRECTORY
+        VERSION_FILENAME = os.path.join(ROOT_DIRECTORY, '%s/version.py' % (MODULE_NAME, ))
 
     if import_directory not in sys.path:
         sys.path.insert(0, import_directory)
+
+    if getattr(plugins, '__iter__', None):
+        RELEASE_PLUGINS = plugins
 
     PARAMETERS_CONFIGURED = True
 
@@ -456,6 +524,9 @@ def version():
 
     _ensure_files_exist(False)
 
+    for error in _get_version_errors():
+        _error_output(error)
+
     _standard_output('%s %s', MODULE_DISPLAY_NAME, _import_version_or_exit())
 
 
@@ -471,6 +542,11 @@ def release(verbose=False, no_stash=False):
     _ensure_configured('release')
 
     __version__ = _import_version_or_exit()
+
+    try:
+        _pre_release(__version__)
+    except ReleaseFailure, e:
+        _error_output_exit(e.message)
 
     _setup_task(no_stash, verbose)
     try:
@@ -506,9 +582,18 @@ def release(verbose=False, no_stash=False):
         _write_to_version_file(release_version, verbose)
         if changelog_text:
             _write_to_changelog(release_version, changelog_text, verbose)
+
+        _pre_commit(__version__, release_version)
+
         _commit_release_changes(release_version, verbose)
+
+        _pre_push(__version__, release_version)
+
         _tag_branch(release_version, verbose)
-        _push_release_changes(release_version, verbose)
+        pushed_or_rolled_back = _push_release_changes(release_version, verbose)
+
+        _post_release(__version__, release_version, pushed_or_rolled_back)
+
         _standard_output('Release process is complete.')
     except ReleaseFailure, e:
         _error_output(e.message)
@@ -531,6 +616,11 @@ def rollback_release(verbose=False, no_stash=False):
     _ensure_configured('rollback_release')
 
     __version__ = _import_version_or_exit()
+
+    try:
+        _pre_rollback(__version__)
+    except ReleaseFailure, e:
+        _error_output_exit(e.message)
 
     _setup_task(no_stash, verbose)
     try:
@@ -561,6 +651,11 @@ def rollback_release(verbose=False, no_stash=False):
                     _delete_last_commit(verbose)
             else:
                 _standard_output('The commit was not reverted.')
+
+            module = __import__('%s.version' % (MODULE_NAME, ), fromlist=['__version__'])
+            reload(module)
+            _post_rollback(__version__, module.__version__)
+
             _standard_output('Release rollback is complete.')
         else:
             _standard_output('Canceling release rollback!')

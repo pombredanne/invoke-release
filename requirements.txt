@@ -1,2 +1,2 @@
 # The only requirement is invoke
-https://pypi.python.org/packages/source/i/invoke/invoke-0.11.1.tar.gz#md5=3d4ecbe26779ceef1046ecf702c9c4a8#egg=invoke
+invoke>=0.11.1

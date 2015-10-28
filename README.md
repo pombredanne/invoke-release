@@ -3,11 +3,12 @@
 The Invoke Release tools are a set of command line tools that help Eventbrite engineers release services and libraries
 quickly, easily, and in a consistent manner. It ensures that the version standards for our projects are the same
 across all projects, and minimizes the possible errors that can occur during a release. This documentation is broken
-down into three sections:
+down into four sections:
 
 * [Installing Invoke Release Tools](#installing-invoke-release-tools)
 * [Using Invoke Release on Existing Projects](#using-invoke-release-on-existing-projects)
 * [Integrating Invoke Release into Your Project](#integrating-invoke-release-into-your-project)
+* [Creating and Using Invoke Release Plugins](#creating-and-using-invoke-release-plugins)
 
 **NOTE:** If you have previously installed `invoke`, this, alone, is not enough to use the Eventbrite Command Line
 Release Tools. Be sure to read the first section below on installing these tools.
@@ -33,7 +34,7 @@ manually/separately install `invoke`.) If you need to specify an exact version o
 (replacing the tag name as necessary):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.0.1
+$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.0.3
 ```
 
 You can confirm that the project and its requirements were successfully installed by checking the version:
@@ -52,7 +53,7 @@ properly and that the tools are installed on your machine:
 $ invoke --version
 Invoke 0.11.1
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 1.0.1
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.3
 EB Common 1.8.2
 ```
 
@@ -134,9 +135,59 @@ and verify the output. Address any errors that you see.
 
 ```
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 1.0.1
+Eventbrite Command Line Release Tools ("Invoke Release") 1.0.3
 EB Common 1.8.2
 ```
 
 Finally, commit these changes to your project and push to remote master. You are now ready to run Invoke Release using
 the steps in [the previous section](#using-invoke-release-on-existing-projects).
+
+## Creating and Using Invoke Release Plugins
+
+In most cases, the default Invoke Release behavior (increment version, update changelog, commit, tag, push) is
+complete and sufficient for releasing a new service or library version. However, sometimes you need more advanced
+behavior. For those times, the Invoke Release tools support plugins that can add behavior during the version check,
+during the pre-release check, between file changes and commit, between commit and tag/push, and after push.
+
+You specify one or more plugins by using the `plugins` argument to `configure_release_parameters`:
+
+```
+from invoke_release.tasks import *
+configure_release_parameters(
+    module_name='my_service',
+    display_name='My Test Service',
+    plugins=[
+        Plugin1(),
+        Plugin2(),
+        etc...
+    ]
+)
+```
+
+A plugin must be an instance of a `class` that extends `invoke_release.plugins:AbstractInvokeReleasePlugin`. You can
+read the [docstring documentation for this class](python/invoke_release/plugins.py) to learn about the available hooks
+and how to implement them. Chances are, though, you can just use one of the built-in plugins, documented below. If you
+do create a new plugin, please submit a code review for adding it to this library so that other projects can enjoy it.
+
+### PatternReplaceVersionInFilesPlugin
+
+The name of this plugin should be pretty self-explanatory. Using this plugin, you can tell Invoke Release about other
+files that contain the version string pattern that should be updated on release. For example, as a proof-of-concept,
+[this library uses the plugin to update the version strings in this documentation](tasks.py).
+
+To use this plugin, just import it, instantiate it, and pass it a list of relative file names whose contents should be
+searched and updated:
+
+```
+from invoke_release.tasks import *
+from invoke_release.plugins import (
+    PatternReplaceVersionInFilesPlugin
+)
+configure_release_parameters(
+    module_name='my_service',
+    display_name='My Test Service',
+    plugins=[
+        PatternReplaceVersionInFilesPlugin('.version', 'README.md')
+    ]
+)
+```
