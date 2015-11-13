@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from distutils.version import LooseVersion
 
 from invoke import task
@@ -23,6 +24,7 @@ ROOT_DIRECTORY = ''
 VERSION_FILENAME = 'python/unknown/version.py'
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
 CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
+CHANGELOG_COMMENT_FIRST_CHAR = '#'
 
 PARAMETERS_CONFIGURED = False
 
@@ -47,10 +49,24 @@ PUSH_RESULT_NO_ACTION = 0
 PUSH_RESULT_PUSHED = 1
 PUSH_RESULT_ROLLBACK = 2
 
+INSTRUCTION_NO = 'n'
+INSTRUCTION_YES = 'y'
+INSTRUCTION_NEW = 'new'
+INSTRUCTION_EDIT = 'edit'
+INSTRUCTION_ACCEPT = 'accept'
+INSTRUCTION_DELETE = 'delete'
+INSTRUCTION_EXIT = 'exit'
+
 
 class ReleaseFailure(Exception):
     """
     Exception raised when something caused the release to fail, and cleanup is required.
+    """
+
+
+class ReleaseExit(Exception):
+    """
+    Control-flow exception raised to cancel a release before changes are made.
     """
 
 
@@ -125,7 +141,7 @@ def _write_to_version_file(release_version, verbose):
             'Failed to find version file: %s' % (VERSION_FILENAME, )
         )
 
-    with open(VERSION_FILENAME, 'r') as version_read:
+    with open(VERSION_FILENAME, 'rb') as version_read:
         output = []
         version_info_written = False
         version_info = VERSION_INFO_VARIABLE_TEMPLATE % (tuple([int(v) for v in release_version.split('.')]), )
@@ -147,7 +163,7 @@ def _write_to_version_file(release_version, verbose):
             else:
                 output.append(line.rstrip())
 
-    with open(VERSION_FILENAME, 'w') as version_write:
+    with open(VERSION_FILENAME, 'wb') as version_write:
         for line in output:
             version_write.write(line)
             version_write.write('\n')
@@ -155,36 +171,142 @@ def _write_to_version_file(release_version, verbose):
     _verbose_output(verbose, 'Finished writing to %s.version.', MODULE_NAME)
 
 
-def _write_to_changelog(release_version, message, verbose):
-    _verbose_output(verbose, 'Writing changelog to %s...', CHANGELOG_FILENAME)
+def _gather_commit_messages(verbose):
+    _verbose_output(verbose, 'Gathering commit messages since last release commit.')
 
-    if not os.path.exists(CHANGELOG_FILENAME):
-        raise ReleaseFailure(
-            'Failed to find changelog file: %s' % (CHANGELOG_FILENAME, )
-        )
+    command = [
+        'git', 'log', '-1', '--format=%H',
+        '--grep=%s' % (RELEASE_MESSAGE_TEMPLATE.replace(' %s.', '').replace('"', '\\"'), )
+    ]
+    _verbose_output(verbose, 'Running command: "%s"', '" "'.join(command))
+    commit_hash = subprocess.check_output(command)
+    commit_hash = commit_hash.strip()
 
-    with open(CHANGELOG_FILENAME, 'r') as changelog_read:
-        output = []
-        wrote_new_message = False
-        for line in changelog_read:
-            # Find the title underline
-            if not wrote_new_message and re.search('^=+$', line):
-                output.append(line.strip())
-                output.append('')
+    if not commit_hash:
+        _verbose_output(verbose, 'No previous release commit was found. Not gathering messages.')
+        return []
 
-                header_line = '%s (%s)' % (release_version, datetime.datetime.now().strftime('%Y-%m-%d'), )
-                output.append(header_line)
-                output.append('-' * len(header_line))
-                output.append(message)
+    command = ['git', 'log', '--format=%s', '%s..HEAD' % (commit_hash, )]
+    _verbose_output(verbose, 'Running command: "%s"', '" "'.join(command))
+    output = subprocess.check_output(command)
 
-                wrote_new_message = True
+    messages = []
+    for message in output.splitlines():
+        messages.append('- %s' % message)
+
+    _verbose_output(
+        verbose, 'Returning %s commit messages gathered since last release commit:\n%s', len(messages), messages
+    )
+
+    return messages
+
+
+def _prompt_for_changelog_and_write(release_version, verbose):
+    built_up_changelog = []
+    changelog_header = []
+    changelog_message = []
+    changelog_footer = []
+
+    _verbose_output(verbose, 'Reading changelog file %s looking for built-up changes...', CHANGELOG_FILENAME)
+    with open(CHANGELOG_FILENAME, 'rb') as changelog_read:
+        previous_line = ''
+        passed_header = passed_changelog = False
+        for line_number, line in enumerate(changelog_read):
+            if not passed_header:
+                changelog_header.append(line)
+                if re.search('^=+$', line):
+                    passed_header = True
+                continue
+
+            if not passed_changelog and re.search('^-+$', line):
+                changelog_footer.append(previous_line)
+                passed_changelog = True
+
+            if passed_changelog:
+                changelog_footer.append(line)
             else:
-                output.append(line.rstrip())
+                if previous_line.strip():
+                    built_up_changelog.append('%s' % (previous_line, ))
 
-    with open(CHANGELOG_FILENAME, 'w') as changelog_write:
-        for line in output:
-            changelog_write.write(line)
+                previous_line = line
+
+    if len(built_up_changelog) > 0:
+        _verbose_output(verbose, 'Read %s lines of built-up changelog text.', len(built_up_changelog))
+        _standard_output('There are existing changelog details for this release. You can "edit" the changes, '
+                         '"accept" them as-is, delete them and create a "new" changelog message, or "delete" '
+                         'them and enter no changelog.')
+        instruction = _prompt('How would you like to proceed? (EDIT/new/accept/delete/exit)').strip().lower()
+
+        if instruction in (INSTRUCTION_NEW, INSTRUCTION_DELETE):
+            built_up_changelog = []
+        if instruction == INSTRUCTION_ACCEPT:
+            changelog_message = built_up_changelog
+        if not instruction or instruction in (INSTRUCTION_EDIT, INSTRUCTION_NEW):
+            instruction = INSTRUCTION_YES
+    else:
+        _verbose_output(verbose, 'No existing lines of built-up changelog text were read.')
+        instruction = _prompt(
+            'Would you like to enter changelog details for this release? (Y/n/exit)'
+        ).strip().lower() or INSTRUCTION_YES
+
+    if instruction == INSTRUCTION_EXIT:
+        raise ReleaseExit()
+
+    if instruction == INSTRUCTION_YES:
+        gather = _prompt(
+            'Would you like to%s gather commit messages from recent commits and add them to the changelog? (%s/exit)',
+            *((' also', 'y/N', ) if built_up_changelog else ('', 'Y/n', ))
+        ).strip().lower() or (INSTRUCTION_NO if built_up_changelog else INSTRUCTION_YES)
+
+        commit_messages = []
+        if gather == INSTRUCTION_YES:
+            commit_messages = _gather_commit_messages(verbose)
+        elif gather == INSTRUCTION_EXIT:
+            raise ReleaseExit()
+
+        with tempfile.NamedTemporaryFile() as tf:
+            _verbose_output(verbose, 'Opened temporary file %s for editing changelog.', tf.name)
+            if commit_messages:
+                tf.write('\n'.join(commit_messages))
+                tf.write('\n')
+            if built_up_changelog:
+                tf.writelines(built_up_changelog)
+            tf.writelines([
+                '\n',
+                '# Enter your changelog message above this comment, then save and close editor when finished.\n',
+                '# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.\n',
+                '# Leave it blank (delete all existing contents) to release with no changelog details.\n',
+                '# All lines starting with "#" are comments and ignored.',
+                '# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".'
+            ])
+            tf.flush()
+            _verbose_output(verbose, 'Wrote existing changelog contents and instructions to temporary file.')
+
+            editor = os.environ.get('EDITOR', 'vi')
+            _verbose_output(verbose, 'Opening editor %s to edit changelog.', editor)
+            subprocess.check_call([editor, tf.name])
+            _verbose_output(verbose, 'User has closed editor')
+
+            with open(tf.name, 'rb') as read:
+                for line in read:
+                    if line and line.strip() and not line.startswith(CHANGELOG_COMMENT_FIRST_CHAR):
+                        changelog_message.append(line)
+            _verbose_output(verbose, 'Changelog message read from temporary file:\n%s', changelog_message)
+
+    _verbose_output(verbose, 'Writing changelog contents to %s.', CHANGELOG_FILENAME)
+    with open(CHANGELOG_FILENAME, 'wb') as changelog_write:
+        header_line = '%s (%s)' % (release_version, datetime.datetime.now().strftime('%Y-%m-%d'), )
+
+        changelog_write.writelines(changelog_header)
+        changelog_write.write('\n')
+        if changelog_message:
+            changelog_write.writelines([
+                header_line, '\n',
+                '-' * len(header_line), '\n',
+            ])
+            changelog_write.writelines(changelog_message)
             changelog_write.write('\n')
+        changelog_write.writelines(changelog_footer)
 
     _verbose_output(verbose, 'Finished writing to changelog.')
 
@@ -206,8 +328,10 @@ def _tag_branch(release_version, verbose, overwrite=False):
 def _commit_release_changes(release_version, verbose):
     _verbose_output(verbose, 'Committing release changes...')
 
+    files_to_commit = [VERSION_FILENAME, CHANGELOG_FILENAME] + _get_extra_files_to_commit()
+    _verbose_output(verbose, 'Staging changes for files %s.' % files_to_commit)
     result = subprocess.check_output(
-        ['git', 'add', VERSION_FILENAME, CHANGELOG_FILENAME] + _get_extra_files_to_commit(),
+        ['git', 'add'] + files_to_commit, stderr=subprocess.STDOUT
     )
     if result:
         raise ReleaseFailure(
@@ -216,7 +340,7 @@ def _commit_release_changes(release_version, verbose):
 
     release_message = RELEASE_MESSAGE_TEMPLATE % (release_version, )
     print subprocess.check_output(
-        ['git', 'commit', '-m', release_message]
+        ['git', 'commit', '-m', release_message], stderr=subprocess.STDOUT
     )
 
     _verbose_output(verbose, 'Finished releasing changes.')
@@ -541,6 +665,9 @@ def release(verbose=False, no_stash=False):
     """
     _ensure_configured('release')
 
+    from invoke_release.version import __version__
+    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") %s', __version__)
+
     __version__ = _import_version_or_exit()
 
     try:
@@ -555,8 +682,7 @@ def release(verbose=False, no_stash=False):
 
         release_version = _prompt('Enter a new version (or "exit"):')
         if not release_version or release_version.lower() == 'exit':
-            _standard_output('Canceling release!')
-            return
+            raise ReleaseExit()
         if not re.match(VERSION_RE, release_version):
             raise ReleaseFailure(
                 'Invalid version specified: %s. Must match "%s".' % (release_version, VERSION_RE, )
@@ -570,18 +696,10 @@ def release(verbose=False, no_stash=False):
                 'Tag %s already exists locally or remotely (or both). Cannot create version.' % (release_version, )
             )
 
-        _print_output(COLOR_WHITE, 'Enter a changelog message (or "exit" to exit, or just leave blank to skip; '
-                                   'hit Enter for a new line, hit Enter twice to finish the changelog message):\n')
-        sentinel = ''
-        changelog_text = '\n'.join(iter(raw_input, sentinel)).strip()
-        if changelog_text and changelog_text.lower() == 'exit':
-            _standard_output('Canceling release!')
-            return
-
         _standard_output('Releasing %s version: %s', MODULE_DISPLAY_NAME, release_version)
         _write_to_version_file(release_version, verbose)
-        if changelog_text:
-            _write_to_changelog(release_version, changelog_text, verbose)
+
+        _prompt_for_changelog_and_write(release_version, verbose)
 
         _pre_commit(__version__, release_version)
 
@@ -595,8 +713,10 @@ def release(verbose=False, no_stash=False):
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         _standard_output('Release process is complete.')
-    except ReleaseFailure, e:
+    except (ReleaseFailure, subprocess.CalledProcessError) as e:
         _error_output(e.message)
+    except (ReleaseExit, KeyboardInterrupt):
+        _standard_output('Canceling release!')
     finally:
         _cleanup_task(verbose)
 
@@ -614,6 +734,9 @@ def rollback_release(verbose=False, no_stash=False):
     been pushed to remote.
     """
     _ensure_configured('rollback_release')
+
+    from invoke_release.version import __version__
+    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") %s', __version__)
 
     __version__ = _import_version_or_exit()
 
@@ -658,8 +781,10 @@ def rollback_release(verbose=False, no_stash=False):
 
             _standard_output('Release rollback is complete.')
         else:
-            _standard_output('Canceling release rollback!')
-    except ReleaseFailure, e:
+            raise ReleaseExit()
+    except (ReleaseFailure, subprocess.CalledProcessError) as e:
         _error_output(e.message)
+    except (ReleaseExit, KeyboardInterrupt):
+        _standard_output('Canceling release rollback!')
     finally:
         _cleanup_task(verbose)
