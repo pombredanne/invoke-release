@@ -41,6 +41,7 @@ _output = sys.stdout
 _output_is_tty = _output.isatty()
 
 COLOR_GREEN_BOLD = '32;1'
+COLOR_RED_STANDARD = '31'
 COLOR_RED_BOLD = '31;1'
 COLOR_GRAY_LIGHT = '38;5;242'
 COLOR_WHITE = '37;1'
@@ -49,6 +50,8 @@ PUSH_RESULT_NO_ACTION = 0
 PUSH_RESULT_PUSHED = 1
 PUSH_RESULT_ROLLBACK = 2
 
+BRANCH_MASTER = 'master'
+
 INSTRUCTION_NO = 'n'
 INSTRUCTION_YES = 'y'
 INSTRUCTION_NEW = 'new'
@@ -56,6 +59,28 @@ INSTRUCTION_EDIT = 'edit'
 INSTRUCTION_ACCEPT = 'accept'
 INSTRUCTION_DELETE = 'delete'
 INSTRUCTION_EXIT = 'exit'
+INSTRUCTION_ROLLBACK = 'rollback'
+
+
+class ErrorStreamWrapper(object):
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+
+    def write(self, err):
+        self.wrapped.write('\x1b[{color}m{err}\x1b[0m'.format(color=COLOR_RED_STANDARD, err=err))
+
+    def writelines(self, lines):
+        self.wrapped.write('\x1b[{}m'.format(COLOR_RED_STANDARD))
+        self.wrapped.writelines(lines)
+        self.wrapped.write('\x1b[0m')
+
+    def __getattribute__(self, item):
+        try:
+            return super(ErrorStreamWrapper, self).__getattribute__(item)
+        except AttributeError:
+            return self.wrapped.__getattribute__(item)
+
+sys.stderr = ErrorStreamWrapper(sys.stderr)
 
 
 class ReleaseFailure(Exception):
@@ -70,44 +95,53 @@ class ReleaseExit(Exception):
     """
 
 
-def _print_output(color, message, *args):
+def _print_output(color, message, *args, **kwargs):
     if _output_is_tty:
-        _output.write('\x1b[{color}m{message}\x1b[0m'.format(color=color, message=message.format(*args)))
+        _output.write(
+            '\x1b[{color}m{message}\x1b[0m'.format(
+                color=color,
+                message=message.format(*args, **kwargs),
+            ),
+        )
         _output.flush()
     else:
-        print message.format(*args)
+        print message.format(*args, **kwargs)
 
 
-def _standard_output(message, *args):
-    _print_output(COLOR_GREEN_BOLD, message + "\n", *args)
+def _standard_output(message, *args, **kwargs):
+    _print_output(COLOR_GREEN_BOLD, message + "\n", *args, **kwargs)
 
 
-def _prompt(message, *args):
-    _print_output(COLOR_WHITE, message + ' ', *args)
-    return raw_input()
+def _prompt(message, *args, **kwargs):
+    _print_output(COLOR_WHITE, message + ' ', *args, **kwargs)
+    response = raw_input()
+    if response:
+        return response.strip()
+    return ''
 
 
-def _error_output(message, *args):
-    _print_output(COLOR_RED_BOLD, ''.join(('ERROR: ', message, "\n")), *args)
+def _error_output(message, *args, **kwargs):
+    _print_output(COLOR_RED_BOLD, ''.join(('ERROR: ', message, "\n")), *args, **kwargs)
 
 
-def _error_output_exit(message, *args):
-    _error_output(message, *args)
+def _error_output_exit(message, *args, **kwargs):
+    _error_output(message, *args, **kwargs)
     sys.exit(1)
 
 
-def _verbose_output(verbose, message, *args):
+def _verbose_output(verbose, message, *args, **kwargs):
     if verbose:
-        _print_output(COLOR_GRAY_LIGHT, ''.join(('DEBUG: ', message, "\n")), *args)
+        _print_output(COLOR_GRAY_LIGHT, ''.join(('DEBUG: ', message, "\n")), *args, **kwargs)
 
 
 def _get_root_directory():
     root_directory = subprocess.check_output(
-        ['git', 'rev-parse', '--show-toplevel']
+        ['git', 'rev-parse', '--show-toplevel'],
+        stderr=sys.stderr,
     ).strip()
 
     if not root_directory:
-        _error_output_exit('Failed to find git root directory')
+        _error_output_exit('Failed to find Git root directory.')
     return root_directory
 
 
@@ -117,7 +151,10 @@ def _setup_task(no_stash, verbose):
         # stash changes before we execute task
         _verbose_output(verbose, 'Stashing changes...')
 
-        result = subprocess.check_output(['git', 'stash'])
+        result = subprocess.check_output(
+            ['git', 'stash'],
+            stderr=sys.stderr,
+        )
         if result.startswith('Saved'):
             __POST_APPLY = True
 
@@ -128,7 +165,10 @@ def _cleanup_task(verbose):
     if __POST_APPLY:
         _verbose_output(verbose, 'Un-stashing changes...')
 
-        subprocess.call(['git', 'stash', 'pop'])
+        subprocess.check_output(
+            ['git', 'stash', 'pop'],
+            stderr=sys.stderr,
+        )
 
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
@@ -138,7 +178,7 @@ def _write_to_version_file(release_version, verbose):
 
     if not os.path.exists(VERSION_FILENAME):
         raise ReleaseFailure(
-            'Failed to find version file: {}'.format(VERSION_FILENAME)
+            'Failed to find version file: {}'.format(VERSION_FILENAME),
         )
 
     with open(VERSION_FILENAME, 'rb') as version_read:
@@ -175,7 +215,7 @@ def _gather_commit_messages(verbose):
         '--grep={}'.format(RELEASE_MESSAGE_TEMPLATE.replace(' {}.', '').replace('"', '\\"'))
     ]
     _verbose_output(verbose, 'Running command: "{}"', '" "'.join(command))
-    commit_hash = subprocess.check_output(command)
+    commit_hash = subprocess.check_output(command, stderr=sys.stderr)
     commit_hash = commit_hash.strip()
 
     if not commit_hash:
@@ -189,20 +229,23 @@ def _gather_commit_messages(verbose):
         '{}..HEAD'.format(commit_hash)
     ]
     _verbose_output(verbose, 'Running command: "{}"', '" "'.join(command))
-    output = subprocess.check_output(command)
+    output = subprocess.check_output(command, stderr=sys.stderr)
 
     messages = []
     for message in output.splitlines():
         messages.append('- {}'.format(message))
 
     _verbose_output(
-        verbose, 'Returning {} commit messages gathered since last release commit:\n{}', len(messages), messages
+        verbose,
+        'Returning {number} commit messages gathered since last release commit:\n{messages}',
+        number=len(messages),
+        messages=messages,
     )
 
     return messages
 
 
-def _prompt_for_changelog(release_version, verbose):
+def _prompt_for_changelog(verbose):
     built_up_changelog = []
     changelog_header = []
     changelog_message = []
@@ -236,7 +279,7 @@ def _prompt_for_changelog(release_version, verbose):
         _standard_output('There are existing changelog details for this release. You can "edit" the changes, '
                          '"accept" them as-is, delete them and create a "new" changelog message, or "delete" '
                          'them and enter no changelog.')
-        instruction = _prompt('How would you like to proceed? (EDIT/new/accept/delete/exit)').strip().lower()
+        instruction = _prompt('How would you like to proceed? (EDIT/new/accept/delete/exit)').lower()
 
         if instruction in (INSTRUCTION_NEW, INSTRUCTION_DELETE):
             built_up_changelog = []
@@ -247,17 +290,18 @@ def _prompt_for_changelog(release_version, verbose):
     else:
         _verbose_output(verbose, 'No existing lines of built-up changelog text were read.')
         instruction = _prompt(
-            'Would you like to enter changelog details for this release? (Y/n/exit)'
-        ).strip().lower() or INSTRUCTION_YES
+            'Would you like to enter changelog details for this release? (Y/n/exit)',
+        ).lower() or INSTRUCTION_YES
 
     if instruction == INSTRUCTION_EXIT:
         raise ReleaseExit()
 
     if instruction == INSTRUCTION_YES:
         gather = _prompt(
-            'Would you like to{} gather commit messages from recent commits and add them to the changelog? ({}/exit)',
-            *([' also', 'y/N'] if built_up_changelog else ['', 'Y/n'])
-        ).strip().lower() or (INSTRUCTION_NO if built_up_changelog else INSTRUCTION_YES)
+            'Would you like to{also} gather commit messages from recent commits and add them to the '
+            'changelog? ({y_n}/exit)',
+            **({'also': ' also', 'y_n': 'y/N'} if built_up_changelog else {'also': '', 'y_n': 'Y/n'})
+        ).lower() or (INSTRUCTION_NO if built_up_changelog else INSTRUCTION_YES)
 
         commit_messages = []
         if gather == INSTRUCTION_YES:
@@ -285,7 +329,11 @@ def _prompt_for_changelog(release_version, verbose):
 
             editor = os.environ.get('EDITOR', 'vi')
             _verbose_output(verbose, 'Opening editor {} to edit changelog.', editor)
-            subprocess.check_call([editor, tf.name])
+            subprocess.check_call(
+                [editor, tf.name],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
             _verbose_output(verbose, 'User has closed editor')
 
             with open(tf.name, 'rb') as read:
@@ -326,7 +374,12 @@ def _tag_branch(release_version, verbose, overwrite=False):
     cmd = ['git', 'tag', '-a', release_version, '-m', release_message]
     if overwrite:
         cmd.append('-f')
-    result = subprocess.check_output(cmd)
+
+    try:
+        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output)
+
     if result:
         raise ReleaseFailure('Failed tagging branch: {}'.format(result))
 
@@ -338,43 +391,56 @@ def _commit_release_changes(release_version, verbose):
 
     files_to_commit = [VERSION_FILENAME, CHANGELOG_FILENAME] + _get_extra_files_to_commit()
     _verbose_output(verbose, 'Staging changes for files {}.'.format(files_to_commit))
-    result = subprocess.check_output(
-        ['git', 'add'] + files_to_commit, stderr=subprocess.STDOUT
-    )
-    if result:
-        raise ReleaseFailure(
-            'Failed staging release files for commit: {}'.format(result)
+
+    try:
+        result = subprocess.check_output(
+            ['git', 'add'] + files_to_commit,
+            stderr=subprocess.STDOUT,
         )
+    except subprocess.CalledProcessError as e:
+        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output)
+
+    if result:
+        raise ReleaseFailure('Failed staging release files for commit: {}'.format(result))
 
     release_message = RELEASE_MESSAGE_TEMPLATE.format(release_version)
-    print subprocess.check_output(
-        ['git', 'commit', '-m', release_message], stderr=subprocess.STDOUT
+    subprocess.check_call(
+        ['git', 'commit', '-m', release_message],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     _verbose_output(verbose, 'Finished releasing changes.')
 
 
-def _push_release_changes(release_version, verbose):
+def _push_release_changes(release_version, branch_name, verbose):
     try:
-        push = raw_input('Push release changes and tag to master? (y/N/rollback): ').strip().lower()
+        push = _prompt(
+            'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback)',
+            branch_name,
+        ).lower()
     except KeyboardInterrupt:
-        push = 'rollback'
+        push = INSTRUCTION_ROLLBACK
 
-    if push == 'y':
-        _verbose_output(verbose, 'Pushing changes to master...')
+    if push == INSTRUCTION_YES:
+        _verbose_output(verbose, 'Pushing changes to remote origin...')
 
-        print subprocess.check_output(
-            ['git', 'push', 'origin', 'master']
+        subprocess.check_call(
+            ['git', 'push', 'origin', '{0}:{0}'.format(branch_name)],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         # push the release tag
-        print subprocess.check_output(
-            ['git', 'push', 'origin', release_version]
+        subprocess.check_call(
+            ['git', 'push', 'origin', release_version],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
 
-        _verbose_output(verbose, 'Finished pushing changes to master.')
+        _verbose_output(verbose, 'Finished pushing changes to remote origin.')
 
         return PUSH_RESULT_PUSHED
-    elif push == 'rollback':
+    elif push == INSTRUCTION_ROLLBACK:
         _standard_output('Rolling back local release commit and tag...')
 
         _delete_last_commit(verbose)
@@ -384,7 +450,7 @@ def _push_release_changes(release_version, verbose):
 
         return PUSH_RESULT_ROLLBACK
     else:
-        _standard_output('Not pushing changes to master!')
+        _standard_output('Not pushing changes to remote origin!')
         _standard_output('Make sure you remember to explicitly push the tag, or '
                          'revert your local changes if you are trying to cancel!')
 
@@ -395,7 +461,8 @@ def _get_last_commit_hash(verbose):
     _verbose_output(verbose, 'Getting last commit hash...')
 
     commit_hash = subprocess.check_output(
-        ['git', 'log', '-n', '1', '--pretty=format:%H']
+        ['git', 'log', '-n', '1', '--pretty=format:%H'],
+        stderr=sys.stderr,
     ).strip()
 
     _verbose_output(verbose, 'Last commit hash is {}.', commit_hash)
@@ -407,24 +474,39 @@ def _get_commit_subject(commit_hash, verbose):
     _verbose_output(verbose, 'Getting commit message for hash {}...', commit_hash)
 
     message = subprocess.check_output(
-        ['git', 'log', '-n', '1', '--pretty=format:%B', commit_hash]
+        ['git', 'log', '-n', '1', '--pretty=format:%B', commit_hash],
+        stderr=sys.stderr,
     ).strip()
 
-    _verbose_output(verbose, 'Commit message for hash {} is "{}".', commit_hash, message)
+    _verbose_output(verbose, 'Commit message for hash {hash} is "{message}".', hash=commit_hash, message=message)
 
     return message
+
+
+def _get_branch_name(verbose):
+    _verbose_output(verbose, 'Determining current Git branch name.')
+
+    branch_name = subprocess.check_output(
+        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+        stderr=sys.stderr,
+    ).strip()
+
+    _verbose_output(verbose, 'Current Git branch name is {}.', branch_name)
+
+    return branch_name
 
 
 def _does_tag_exist_locally(release_version, verbose):
     _verbose_output(verbose, 'Checking if tag {} exists locally...', release_version)
 
     result = subprocess.check_output(
-        ['git', 'tag', '--list', release_version]
+        ['git', 'tag', '--list', release_version],
+        stderr=sys.stderr,
     ).strip()
 
     exists = release_version in result
 
-    _verbose_output(verbose, 'Result of exists check for tag {} is {}.', release_version, exists)
+    _verbose_output(verbose, 'Result of exists check for tag {tag} is {result}.', tag=release_version, result=exists)
 
     return exists
 
@@ -433,26 +515,42 @@ def _is_tag_on_remote(release_version, verbose):
     _verbose_output(verbose, 'Checking if tag {} was pushed to remote...', release_version)
 
     result = subprocess.check_output(
-        ['git', 'ls-remote', '--tags', 'origin', release_version]
+        ['git', 'ls-remote', '--tags', 'origin', release_version],
+        stderr=sys.stderr,
     ).strip()
 
     on_remote = release_version in result
 
-    _verbose_output(verbose, 'Result of on-remote check for tag {} is {}.', release_version, on_remote)
+    _verbose_output(
+        verbose,
+        'Result of on-remote check for tag {tag} is {result}.',
+        tag=release_version,
+        result=on_remote,
+    )
 
     return on_remote
 
 
-def _is_commit_on_remote(commit_hash, verbose):
-    _verbose_output(verbose, 'Checking if commit {} was pushed to remote...', commit_hash)
+def _get_remote_branches_with_commit(commit_hash, verbose):
+    _verbose_output(verbose, 'Checking if commit {} was pushed to any remote branches...', commit_hash)
 
     result = subprocess.check_output(
-        ['git', 'branch', '-r', '--contains', commit_hash]
+        ['git', 'branch', '-r', '--contains', commit_hash],
+        stderr=sys.stderr,
     ).strip()
 
-    on_remote = 'origin/master' in result
+    on_remote = []
+    for line in result.splitlines():
+        line = line.strip()
+        if line.startswith('origin/'):
+            on_remote.append(line)
 
-    _verbose_output(verbose, 'Result of on-remote check for commit {} is {}.', commit_hash, on_remote)
+    _verbose_output(
+        verbose,
+        'Result of on-remote check for commit {hash} is {remote}.',
+        hash=commit_hash,
+        remote=on_remote,
+    )
 
     return on_remote
 
@@ -460,8 +558,10 @@ def _is_commit_on_remote(commit_hash, verbose):
 def _delete_local_tag(tag_name, verbose):
     _verbose_output(verbose, 'Deleting local tag {}...', tag_name)
 
-    print subprocess.check_output(
-        ['git', 'tag', '-d', tag_name]
+    subprocess.check_call(
+        ['git', 'tag', '-d', tag_name],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     _verbose_output(verbose, 'Finished deleting local tag {}.', tag_name)
@@ -470,8 +570,10 @@ def _delete_local_tag(tag_name, verbose):
 def _delete_remote_tag(tag_name, verbose):
     _verbose_output(verbose, 'Deleting remote tag {}...', tag_name)
 
-    print subprocess.check_output(
-        ['git', 'push', 'origin', ':refs/tags/{}'.format(tag_name)]
+    subprocess.check_call(
+        ['git', 'push', 'origin', ':refs/tags/{}'.format(tag_name)],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     _verbose_output(verbose, 'Finished deleting remote tag {}.', tag_name)
@@ -482,34 +584,46 @@ def _delete_last_commit(verbose):
 
     extra_files = _get_extra_files_to_commit()
 
-    print subprocess.check_output(
-        ['git', 'reset', '--soft', 'HEAD~1']
+    subprocess.check_call(
+        ['git', 'reset', '--soft', 'HEAD~1'],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
-    print subprocess.check_output(
+    subprocess.check_call(
         ['git', 'reset', 'HEAD', VERSION_FILENAME, CHANGELOG_FILENAME] + extra_files,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
-    print subprocess.check_output(
+    subprocess.check_call(
         ['git', 'checkout', '--', VERSION_FILENAME, CHANGELOG_FILENAME] + extra_files,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     _verbose_output(verbose, 'Finished deleting last commit.')
 
 
-def _revert_remote_commit(release_version, commit_hash, verbose):
-    _verbose_output(verbose, 'Rolling back release commit...')
+def _revert_remote_commit(release_version, commit_hash, branch_name, verbose):
+    _verbose_output(verbose, 'Rolling back release commit on remote branch "{}"...', branch_name)
 
-    print subprocess.check_output(
-        ['git', 'revert', '--no-edit', '--no-commit', commit_hash]
+    subprocess.check_call(
+        ['git', 'revert', '--no-edit', '--no-commit', commit_hash],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     release_message = 'REVERT: {}'.format(RELEASE_MESSAGE_TEMPLATE.format(release_version))
-    print subprocess.check_output(
-        ['git', 'commit', '-m', release_message]
+    subprocess.check_call(
+        ['git', 'commit', '-m', release_message],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
-    _verbose_output(verbose, 'Pushing changes to master...')
-    print subprocess.check_output(
-        ['git', 'push', 'origin', 'master']
+    _verbose_output(verbose, 'Pushing changes to remote branch "{}"...', branch_name)
+    subprocess.check_call(
+        ['git', 'push', 'origin', '{0}:{0}'.format(branch_name)],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     _verbose_output(verbose, 'Finished rolling back release commit.')
@@ -521,13 +635,13 @@ def _import_version_or_exit():
     except ImportError, e:
         import pprint
         _error_output_exit(
-            'Could not import `__version__` from `{}.version`. Error was "ImportError: {}." Path is:\n{}',
-            MODULE_NAME, e.message, pprint.pformat(sys.path)
+            'Could not import `__version__` from `{module}.version`. Error was "ImportError: {err}." Path is:\n{path}',
+            module=MODULE_NAME,
+            err=e.message,
+            path=pprint.pformat(sys.path),
         )
     except AttributeError, e:
-        _error_output_exit(
-            'Could not retrieve `__version__` from imported module. Error was "{}."', e.message
-        )
+        _error_output_exit('Could not retrieve `__version__` from imported module. Error was "{}."', e.message)
 
 
 def _ensure_files_exist(exit_on_failure):
@@ -536,14 +650,14 @@ def _ensure_files_exist(exit_on_failure):
     if not os.path.isfile(VERSION_FILENAME):
         _error_output(
             'Version file {} was not found! This project is not correctly configured to use `invoke release`!',
-            VERSION_FILENAME
+            VERSION_FILENAME,
         )
         failure = True
 
     if not os.path.isfile(CHANGELOG_FILENAME):
         _error_output(
             'Changelog file {} was not found! This project is not correctly configured to use `invoke release`!',
-            CHANGELOG_FILENAME
+            CHANGELOG_FILENAME,
         )
         failure = True
 
@@ -631,7 +745,7 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
         import_directory = os.path.normpath(os.path.join(ROOT_DIRECTORY, python_directory))
         VERSION_FILENAME = os.path.join(
             ROOT_DIRECTORY,
-            '{python}/{module}/version.py'.format(python=python_directory, module=MODULE_NAME)
+            '{python}/{module}/version.py'.format(python=python_directory, module=MODULE_NAME),
         )
     else:
         import_directory = ROOT_DIRECTORY
@@ -662,7 +776,9 @@ def version():
     for error in _get_version_errors():
         _error_output(error)
 
-    _standard_output('{} {}', MODULE_DISPLAY_NAME, _import_version_or_exit())
+    _standard_output('{module} {version}', module=MODULE_DISPLAY_NAME, version=_import_version_or_exit())
+
+    _standard_output('Detected Git branch: {}', _get_branch_name(False))
 
 
 @task(help={
@@ -684,6 +800,18 @@ def release(verbose=False, no_stash=False):
 
     __version__ = _import_version_or_exit()
 
+    branch_name = _get_branch_name(verbose)
+    if branch_name != BRANCH_MASTER:
+        instruction = _prompt(
+            'You are currently on branch "{branch}" instead of "master." You should release ONLY patch versions '
+            'from branches other than master.\nAre you sure you want to continue releasing from "{branch}?" (y/N)',
+            branch=branch_name,
+        ).lower()
+
+        if instruction != INSTRUCTION_YES:
+            _standard_output('Canceling release!')
+            return
+
     try:
         _pre_release(__version__)
     except ReleaseFailure, e:
@@ -694,31 +822,35 @@ def release(verbose=False, no_stash=False):
         _standard_output('Releasing {}...', MODULE_DISPLAY_NAME)
         _standard_output('Current version: {}', __version__)
 
-        release_version = _prompt('Enter a new version (or "exit"):')
-        if not release_version or release_version.lower() == 'exit':
+        release_version = _prompt('Enter a new version (or "exit"):').lower()
+        if not release_version or release_version == INSTRUCTION_EXIT:
             raise ReleaseExit()
         if not re.match(VERSION_RE, release_version):
             raise ReleaseFailure(
                 'Invalid version specified: {version}. Must match "{regex}".'.format(
                     version=release_version,
                     regex=VERSION_RE,
-                )
+                ),
             )
         if not (LooseVersion(release_version) > LooseVersion(__version__)):
             raise ReleaseFailure(
                 'New version number {new_version} is not greater than current version {old_version}.'.format(
                     new_version=release_version,
                     old_version=__version__,
-                )
+                ),
             )
         if _does_tag_exist_locally(release_version, verbose) or _is_tag_on_remote(release_version, verbose):
             raise ReleaseFailure(
-                'Tag {} already exists locally or remotely (or both). Cannot create version.'.format(release_version)
+                'Tag {} already exists locally or remotely (or both). Cannot create version.'.format(release_version),
             )
 
-        cl_header, cl_message, cl_footer = _prompt_for_changelog(release_version, verbose)
+        cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
 
-        _standard_output('Releasing {} version: {}', MODULE_DISPLAY_NAME, release_version)
+        instruction = _prompt('No changes have been committed yet. Are you ready to commit the release? (Y/n)').lower()
+        if instruction and instruction != INSTRUCTION_YES:
+            raise ReleaseExit()
+
+        _standard_output('Releasing {module} version: {version}', module=MODULE_DISPLAY_NAME, version=release_version)
 
         _write_to_version_file(release_version, verbose)
         _write_to_changelog_file(release_version, cl_header, cl_message, cl_footer, verbose)
@@ -730,7 +862,7 @@ def release(verbose=False, no_stash=False):
         _pre_push(__version__, release_version)
 
         _tag_branch(release_version, verbose)
-        pushed_or_rolled_back = _push_release_changes(release_version, verbose)
+        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
 
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
@@ -765,6 +897,18 @@ def rollback_release(verbose=False, no_stash=False):
 
     __version__ = _import_version_or_exit()
 
+    branch_name = _get_branch_name(verbose)
+    if branch_name != BRANCH_MASTER:
+        instruction = _prompt(
+            'You are currently on branch "{branch}" instead of "master." Rolling back on a branch other than master '
+            'can be dangerous.\nAre you sure you want to continue rolling back on "{branch}?" (y/N)',
+            branch=branch_name,
+        ).lower()
+
+        if instruction != INSTRUCTION_YES:
+            _standard_output('Canceling release rollback!')
+            return
+
     try:
         _pre_rollback(__version__)
     except ReleaseFailure, e:
@@ -777,24 +921,33 @@ def rollback_release(verbose=False, no_stash=False):
         if message != RELEASE_MESSAGE_TEMPLATE.format(__version__):
             raise ReleaseFailure('Cannot roll back because last commit is not the release commit.')
 
+        on_remote = _get_remote_branches_with_commit(commit_hash, verbose)
+        is_on_remote = False
+        if len(on_remote) == 1:
+            is_on_remote = on_remote[0] == 'origin/{}'.format(branch_name)
+        elif len(on_remote) > 1:
+            raise ReleaseFailure(
+                'Cannot roll back because release commit is on multiple remote branches: {}'.format(on_remote),
+            )
+
         _standard_output('Release tag {} will be deleted locally and remotely (if applicable).', __version__)
-        delete = _prompt('Do you want to proceed with deleting this tag? (y/N):').lower()
-        if delete == 'y':
+        delete = _prompt('Do you want to proceed with deleting this tag? (y/N)').lower()
+        if delete == INSTRUCTION_YES:
             tag_on_remote = _is_tag_on_remote(__version__, verbose)
             _delete_local_tag(__version__, verbose)
             if tag_on_remote:
                 _delete_remote_tag(__version__, verbose)
 
             _standard_output('The release tag has been deleted from local and remote (if applicable).')
-            revert = _prompt('Do you also want to revert the commit? (y/N):').lower()
-            if revert == 'y':
-                if _is_commit_on_remote(commit_hash, verbose):
-                    _standard_output('The commit is present on the remote master branch.')
+            revert = _prompt('Do you also want to revert the commit? (y/N)').lower()
+            if revert == INSTRUCTION_YES:
+                if is_on_remote:
+                    _standard_output('The commit is present on the remote origin.')
                     revert = _prompt(
-                        'Are you sure you want to revert the commit and immediately push to master? (y/N):'
+                        'Are you sure you want to revert the commit and immediately push to remote origin? (y/N)',
                     ).lower()
-                    if revert == 'y':
-                        _revert_remote_commit(__version__, commit_hash, verbose)
+                    if revert == INSTRUCTION_YES:
+                        _revert_remote_commit(__version__, commit_hash, branch_name, verbose)
                 else:
                     _delete_last_commit(verbose)
             else:
