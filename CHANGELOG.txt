@@ -1,6 +1,15 @@
 Changelog
 =========
 
+1.1.0 (2015-11-19)
+------------------
+- Add changelog details to commit release message
+- Updated release tool to work with branches other than master
+- Refactored to use {}/`format` instead of %s/`%` and fixed a bug with the new changelog feature
+- Improved changelog feature to accept built-up changelog, gather commit messages, edit message in advanced editor
+- Added support for plugins that can execute hooks at various stages of the release lifecycle
+- Updated tool to fail more cleanly instead of erroring out on problems, check if tag already exists before releasing
+
 1.0.3 (2015-10-22)
 ------------------
 - Fixed errors that appeared if called from subdirectory.
