@@ -478,7 +478,7 @@ def _get_commit_subject(commit_hash, verbose):
         stderr=sys.stderr,
     ).strip()
 
-    _verbose_output(verbose, 'Commit message for hash {hash} is "{message}".', hash=commit_hash, message=message)
+    _verbose_output(verbose, 'Commit message for hash {hash} is "{value}".', hash=commit_hash, value=message)
 
     return message
 
