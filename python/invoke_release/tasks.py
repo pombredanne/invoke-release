@@ -386,7 +386,7 @@ def _tag_branch(release_version, verbose, overwrite=False):
     _verbose_output(verbose, 'Finished tagging branch.')
 
 
-def _commit_release_changes(release_version, verbose):
+def _commit_release_changes(release_version, changelog_lines, verbose):
     _verbose_output(verbose, 'Committing release changes...')
 
     files_to_commit = [VERSION_FILENAME, CHANGELOG_FILENAME] + _get_extra_files_to_commit()
@@ -403,9 +403,14 @@ def _commit_release_changes(release_version, verbose):
     if result:
         raise ReleaseFailure('Failed staging release files for commit: {}'.format(result))
 
-    release_message = RELEASE_MESSAGE_TEMPLATE.format(release_version)
+    release_message = [RELEASE_MESSAGE_TEMPLATE.format(release_version)]
+    if changelog_lines:
+        release_message.append('\nChangelog Details:')
+        for line in changelog_lines:
+            release_message.append(line.strip())
+
     subprocess.check_call(
-        ['git', 'commit', '-m', release_message],
+        ['git', 'commit', '-m', '\n'.join(release_message)],
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
@@ -474,7 +479,7 @@ def _get_commit_subject(commit_hash, verbose):
     _verbose_output(verbose, 'Getting commit message for hash {}...', commit_hash)
 
     message = subprocess.check_output(
-        ['git', 'log', '-n', '1', '--pretty=format:%B', commit_hash],
+        ['git', 'log', '-n', '1', '--pretty=format:%s', commit_hash],
         stderr=sys.stderr,
     ).strip()
 
@@ -857,7 +862,7 @@ def release(verbose=False, no_stash=False):
 
         _pre_commit(__version__, release_version)
 
-        _commit_release_changes(release_version, verbose)
+        _commit_release_changes(release_version, cl_message, verbose)
 
         _pre_push(__version__, release_version)
 
