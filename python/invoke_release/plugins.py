@@ -53,8 +53,10 @@ class AbstractInvokeReleasePlugin(object):
         if errors:
             import pprint
             raise ReleaseFailure(
-                'The %s plugin generated the following errors:\n%s' %
-                (self.__class__.__name__, pprint.pformat(errors), )
+                'The {plugin_class} plugin generated the following errors:\n{errors}'.format(
+                    plugin_class=self.__class__.__name__,
+                    errors=pprint.pformat(errors),
+                )
             )
 
     def pre_commit(self, root_directory, old_version, new_version):
@@ -142,8 +144,10 @@ class PatternReplaceVersionInFilesPlugin(AbstractInvokeReleasePlugin):
         for file_name in self.get_extra_files_to_commit(root_directory):
             if not os.path.exists(file_name):
                 file_errors.append(
-                    'The file %s was not found! %s is not configured correctly!' %
-                    (file_name, self.__class__.__name__, )
+                    'The file {file_name} was not found! {plugin_class} is not configured correctly!'.format(
+                        file_name=file_name,
+                        plugin_class=self.__class__.__name__,
+                    )
                 )
         return file_errors
 

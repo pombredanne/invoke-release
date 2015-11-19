@@ -17,7 +17,7 @@ test_requirements = [
 ]
 
 if sys.argv[-1] == 'tag':
-    os.system("git tag -a %s -m 'version %s'" % (__version__, __version__))
+    os.system("git tag -a {version} -m 'version {version}'".format(version=__version__))
     os.system('git push --tags')
     sys.exit()
 
