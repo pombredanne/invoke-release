@@ -321,7 +321,7 @@ def _prompt_for_changelog(verbose):
                 '# Enter your changelog message above this comment, then save and close editor when finished.\n',
                 '# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.\n',
                 '# Leave it blank (delete all existing contents) to release with no changelog details.\n',
-                '# All lines starting with "#" are comments and ignored.',
+                '# All lines starting with "#" are comments and ignored.\n',
                 '# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".'
             ])
             tf.flush()
