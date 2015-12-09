@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.1.1 (2015-12-09)
+------------------
+- Made file exist checks case-sensitive, because Git is always case sensitive, even though ExtFS+ isn't. As a result, if the file was named `CHANGELOG.TXT`, and the release tool called `git add CHANGELOG.txt`, Git would silently fail to add the file without any error codes, and the release tool would incorrectly succeed with a partial release.
+- Fixed a typo in the changelog editor comments.
+
 1.1.0 (2015-11-19)
 ------------------
 - Add changelog details to commit release message
