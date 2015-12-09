@@ -134,6 +134,14 @@ def _verbose_output(verbose, message, *args, **kwargs):
         _print_output(COLOR_GRAY_LIGHT, ''.join(('DEBUG: ', message, "\n")), *args, **kwargs)
 
 
+def _case_sensitive_regular_file_exists(filename):
+    if not os.path.isfile(filename):
+        # Short circuit
+        return False
+    directory, filename = os.path.split(filename)
+    return filename in os.listdir(directory)
+
+
 def _get_root_directory():
     root_directory = subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'],
@@ -176,9 +184,9 @@ def _cleanup_task(verbose):
 def _write_to_version_file(release_version, verbose):
     _verbose_output(verbose, 'Writing version to {}...', VERSION_FILENAME)
 
-    if not os.path.exists(VERSION_FILENAME):
+    if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
         raise ReleaseFailure(
-            'Failed to find version file: {}'.format(VERSION_FILENAME),
+            'Failed to find version file: {}. File names are case sensitive!'.format(VERSION_FILENAME),
         )
 
     with open(VERSION_FILENAME, 'rb') as version_read:
@@ -347,6 +355,12 @@ def _prompt_for_changelog(verbose):
 
 def _write_to_changelog_file(release_version, changelog_header, changelog_message, changelog_footer, verbose):
     _verbose_output(verbose, 'Writing changelog contents to {}.', CHANGELOG_FILENAME)
+
+    if not _case_sensitive_regular_file_exists(CHANGELOG_FILENAME):
+        raise ReleaseFailure(
+            'Failed to find changelog file: {}. File names are case sensitive!'.format(CHANGELOG_FILENAME),
+        )
+
     with open(CHANGELOG_FILENAME, 'wb') as changelog_write:
         header_line = '{version} ({date})'.format(
             version=release_version,
@@ -652,22 +666,20 @@ def _import_version_or_exit():
 def _ensure_files_exist(exit_on_failure):
     failure = False
 
-    if not os.path.isfile(VERSION_FILENAME):
-        _error_output(
-            'Version file {} was not found! This project is not correctly configured to use `invoke release`!',
-            VERSION_FILENAME,
-        )
+    if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
+        _error_output('Version file {} was not found!', VERSION_FILENAME)
         failure = True
 
-    if not os.path.isfile(CHANGELOG_FILENAME):
-        _error_output(
-            'Changelog file {} was not found! This project is not correctly configured to use `invoke release`!',
-            CHANGELOG_FILENAME,
-        )
+    if not _case_sensitive_regular_file_exists(CHANGELOG_FILENAME):
+        _error_output('Changelog file {} was not found!', CHANGELOG_FILENAME)
         failure = True
 
-    if exit_on_failure and failure:
-        sys.exit(1)
+    if failure:
+        _error_output(
+            'This project is not correctly configured to use `invoke release`! (File names are case sensitive!)'
+        )
+        if exit_on_failure:
+            sys.exit(1)
 
 
 def _ensure_configured(command):
