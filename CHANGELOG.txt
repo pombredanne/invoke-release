@@ -1,6 +1,14 @@
 Changelog
 =========
 
+1.2.0 (2016-01-21)
+------------------
+- Fixed issue with release tool using vi instead of vim by default and vi being linked differently in path
+  - Changed the default from `vi` to `vim`, because it has been established that a `vi` command linked to a non-`vim` executable doesn't work.
+  - Added the ability to specify an Invoke Release-specific editor environmental variable that doesn't conflict with other applications' use of `$EDITOR`.
+  - Added exception checking to suggest using the environmental variable if an editor fails to launch.
+  - Improved error messages for other command error messages, because `CalledProcessError` never has a value for `e.message`.
+
 1.1.1 (2015-12-09)
 ------------------
 - Made file exist checks case-sensitive, because Git is always case sensitive, even though Mac OS X's file system isn't. As a result, if the file was named `CHANGELOG.TXT`, and the release tool called `git add CHANGELOG.txt`, Git would silently fail to add the file without any error codes, and the release tool would incorrectly succeed with a partial release.
