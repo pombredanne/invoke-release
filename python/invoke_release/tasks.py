@@ -335,13 +335,25 @@ def _prompt_for_changelog(verbose):
             tf.flush()
             _verbose_output(verbose, 'Wrote existing changelog contents and instructions to temporary file.')
 
-            editor = os.environ.get('EDITOR', 'vi')
+            editor = os.environ.get('INVOKE_RELEASE_EDITOR', os.environ.get('EDITOR', 'vim'))
             _verbose_output(verbose, 'Opening editor {} to edit changelog.', editor)
-            subprocess.check_call(
-                [editor, tf.name],
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-            )
+            try:
+                subprocess.check_call(
+                    [editor, tf.name],
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            except subprocess.CalledProcessError as e:
+                raise ReleaseFailure(
+                    (
+                        'Failed to open changelog editor {editor} due to return code {return_code}. Try setting '
+                        '$INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to Vim or another '
+                        'editor.'
+                    ).format(
+                            editor=editor,
+                            return_code=e.returncode,
+                    )
+                )
             _verbose_output(verbose, 'User has closed editor')
 
             with open(tf.name, 'rb') as read:
@@ -884,8 +896,15 @@ def release(verbose=False, no_stash=False):
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         _standard_output('Release process is complete.')
-    except (ReleaseFailure, subprocess.CalledProcessError) as e:
+    except ReleaseFailure as e:
         _error_output(e.message)
+    except subprocess.CalledProcessError as e:
+        _error_output(
+            'Command {command} failed with error code {error_code}. Command output:\n{output}',
+            command=e.cmd,
+            error_code=e.returncode,
+            output=e.output,
+        )
     except (ReleaseExit, KeyboardInterrupt):
         _standard_output('Canceling release!')
     finally:
@@ -977,8 +996,15 @@ def rollback_release(verbose=False, no_stash=False):
             _standard_output('Release rollback is complete.')
         else:
             raise ReleaseExit()
-    except (ReleaseFailure, subprocess.CalledProcessError) as e:
+    except ReleaseFailure as e:
         _error_output(e.message)
+    except subprocess.CalledProcessError as e:
+        _error_output(
+            'Command {command} failed with error code {error_code}. Command output:\n{output}',
+            command=e.cmd,
+            error_code=e.returncode,
+            output=e.output,
+        )
     except (ReleaseExit, KeyboardInterrupt):
         _standard_output('Canceling release rollback!')
     finally:
