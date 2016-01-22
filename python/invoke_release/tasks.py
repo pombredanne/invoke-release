@@ -343,17 +343,21 @@ def _prompt_for_changelog(verbose):
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-            except subprocess.CalledProcessError as e:
-                raise ReleaseFailure(
-                    (
-                        'Failed to open changelog editor {editor} due to return code {return_code}. Try setting '
-                        '$INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to Vim or another '
-                        'editor.'
-                    ).format(
-                            editor=editor,
-                            return_code=e.returncode,
-                    )
+            except (subprocess.CalledProcessError, OSError) as e:
+                args = {'editor': editor}
+                if isinstance(e, OSError):
+                    message = 'Failed to open changelog editor `{editor}` due to error: {error} (err {error_code}).'
+                    args.update(error=e.strerror, error_code=e.errno)
+                else:
+                    message = 'Failed to open changelog editor `{editor}` due to return code: {return_code}.'
+                    args.update(return_code=e.returncode)
+
+                message += (
+                    ' Try setting $INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to '
+                    'Vim or another editor.'
                 )
+
+                raise ReleaseFailure(message.format(**args))
             _verbose_output(verbose, 'User has closed editor')
 
             with open(tf.name, 'rb') as read:
