@@ -1,6 +1,10 @@
 Changelog
 =========
 
+1.2.1 (2016-01-22)
+------------------
+- Fixed a bug Senna discovered: If path to Vim doesn't exist, a different error is thrown.
+
 1.2.0 (2016-01-21)
 ------------------
 - Fixed issue with release tool using vi instead of vim by default and vi being linked differently in path
