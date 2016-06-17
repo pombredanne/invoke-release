@@ -1,6 +1,10 @@
 Changelog
 =========
 
+1.3.0 (2016-06-17)
+------------------
+- Support the latest version of Invoke, which requires context arguments for tasks
+
 1.2.1 (2016-01-22)
 ------------------
 - Fixed a bug Senna discovered: If path to Vim doesn't exist, a different error is thrown.
