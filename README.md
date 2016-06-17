@@ -23,25 +23,25 @@ get the latest devtools helpers, and a second time to actually install the relea
 
 If, for some reason, you need to manually install the release tools (for example, to use master instead of the latest
 tag, or to use the release tools within Vagrant/Docker instead of on your local machine), that's easy, too. Just run
-the following command:
+the following command (if you are using Python on a Mac not installed with Homebrew, you need to run this as `sudo`):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
+$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git
 ```
 
 This will install the Eventbrite Command Line Release Tools and their only dependency, `invoke`. (You do not need to
 manually/separately install `invoke`.) If you need to specify an exact version of the tools, you can use a tag
-(replacing the tag name as necessary):
+(replacing the tag name as necessary, and using `sudo` as necessary as described above):
 
 ```
-$ sudo pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.2.1
+$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@1.2.1
 ```
 
 You can confirm that the project and its requirements were successfully installed by checking the version:
 
 ```
 $ invoke --version
-Invoke 0.11.1
+Invoke 0.13.0
 ```
 
 ## Using Invoke Release on Existing Projects
@@ -51,7 +51,7 @@ properly and that the tools are installed on your machine:
 
 ```
 $ invoke --version
-Invoke 0.11.1
+Invoke 0.13.0
 $ invoke version
 Eventbrite Command Line Release Tools ("Invoke Release") 1.2.1
 EB Common 1.8.2

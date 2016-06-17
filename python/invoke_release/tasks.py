@@ -794,9 +794,11 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 
 
 @task
-def version():
+def version(_):
     """
     Prints the "Invoke Release" version and the version of the current project.
+
+    :param _: An unused context variable required by Invoke 0.13.0+.
     """
     if not PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot `invoke version` before calling `configure_release_parameters`.')
@@ -819,10 +821,11 @@ def version():
     'no-stash': 'Specify this switch to disable stashing any uncommitted changes (by default, changes that have '
                 'not been committed are stashed before the release is executed).',
 })
-def release(verbose=False, no_stash=False):
+def release(_, verbose=False, no_stash=False):
     """
     Increases the version, adds a changelog message, and tags a new version of this project.
 
+    :param _: An unused context variable required by Invoke 0.13.0+.
     :param verbose: See @task help above.
     :param no_stash: See @task help above.
     """
@@ -920,13 +923,14 @@ def release(verbose=False, no_stash=False):
     'no-stash': 'Specify this switch to disable stashing any uncommitted changes (by default, changes that have '
                 'not been committed are stashed before the release is rolled back).',
 })
-def rollback_release(verbose=False, no_stash=False):
+def rollback_release(_, verbose=False, no_stash=False):
     """
     If the last commit is the commit for the current release, this command deletes the release tag and deletes
     (if local only) or reverts (if remote) the last commit. This is fairly safe to do if the release has not
     yet been pushed to remote, but extreme caution should be exercised when invoking this after the release has
     been pushed to remote.
 
+    :param _: An unused context variable required by Invoke 0.13.0+.
     :param verbose:  See @task help above.
     :param no_stash:  See @task help above.
     """
