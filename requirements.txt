@@ -1,2 +1,2 @@
 # The only requirement is invoke
-invoke==0.13.*
+invoke>=0.13.0,<0.14.0

@@ -10,7 +10,7 @@ packages = [x for x in find_packages('python') if '.tests' not in x]
 
 # No dependencies to keep the library lightweight
 install_requires = [
-    'invoke==0.13.*'
+    'invoke>=0.13.0,<0.14.0',
 ]
 
 test_requirements = [
