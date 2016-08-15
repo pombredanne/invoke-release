@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import shlex
 from distutils.version import LooseVersion
 
 from invoke import task
@@ -339,7 +340,7 @@ def _prompt_for_changelog(verbose):
             _verbose_output(verbose, 'Opening editor {} to edit changelog.', editor)
             try:
                 subprocess.check_call(
-                    [editor, tf.name],
+                    shlex.split(editor) + [tf.name],
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
