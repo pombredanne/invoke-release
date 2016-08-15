@@ -34,6 +34,7 @@ __POST_APPLY = False
 __all__ = [
     'configure_release_parameters',
     'version',
+    'branch',
     'release',
     'rollback_release',
 ]
@@ -532,6 +533,55 @@ def _get_branch_name(verbose):
     return branch_name
 
 
+def _create_branch_from_tag(verbose, tag_name, branch_name):
+    _verbose_output(verbose, 'Creating branch {branch} from tag {tag}...', branch=branch_name, tag=tag_name)
+
+    subprocess.check_call(
+        ['git', 'checkout', 'tags/{}'.format(tag_name), '-b', branch_name],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+
+
+def _push_branch(verbose, branch_name):
+    _verbose_output(verbose, 'Pushing branch {} to remote.', branch_name)
+
+    subprocess.check_call(
+        ['git', 'push', 'origin', '{0}:{0}'.format(branch_name)],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done pushing branch {}.', branch_name)
+
+
+def _fetch_tags(verbose):
+    _verbose_output(verbose, 'Fetching all remote tags...')
+
+    subprocess.check_call(
+        ['git', 'fetch', '--tags'],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done fetching tags.')
+
+
+def _get_tag_list(verbose):
+    _verbose_output(verbose, 'Parsing list of local tags...')
+
+    result = subprocess.check_output(
+        ['git', 'tag', '--list'],
+        stderr=sys.stderr,
+    ).strip().split()
+
+    _verbose_output(verbose, 'Result of tag list parsing is {}.', result)
+
+    return result
+
+
 def _does_tag_exist_locally(release_version, verbose):
     _verbose_output(verbose, 'Checking if tag {} exists locally...', release_version)
 
@@ -815,6 +865,70 @@ def version(_):
     _standard_output('{module} {version}', module=MODULE_DISPLAY_NAME, version=_import_version_or_exit())
 
     _standard_output('Detected Git branch: {}', _get_branch_name(False))
+
+
+@task(help={
+    'verbose': 'Specify this switch to include verbose debug information in the command output.',
+    'no-stash': 'Specify this switch to disable stashing any uncommitted changes (by default, changes that have '
+                'not been committed are stashed before the branch is created).',
+})
+def branch(_, verbose=False, no_stash=False):
+    """
+    Creates a patching branch from a release tag for creating a new patch release from that branch.
+
+    :param _: An unused context variable required by Invoke 0.13.0+.
+    :param verbose: See @task help above.
+    :param no_stash: See @task help above.
+    """
+    _ensure_configured('release')
+
+    from invoke_release.version import __version__
+    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
+
+    _setup_task(no_stash, verbose)
+    try:
+        _fetch_tags(verbose)
+
+        tags = _get_tag_list(verbose)
+
+        branch_version = _prompt('Enter a version tag from which to create a new branch (or "exit"):').lower()
+        if not branch_version or branch_version == INSTRUCTION_EXIT:
+            raise ReleaseExit()
+
+        if branch_version not in tags:
+            raise ReleaseFailure('Version number {} not in the list of available tags.'.format(branch_version))
+
+        _v = LooseVersion(branch_version)
+        new_branch = '.'.join(map(str, _v.version[:2]) + ['x'])
+
+        proceed_instruction = _prompt(
+            'About to create branch {branch} from tag {tag}. Are you ready to proceed? (Y/n):',
+            branch=new_branch,
+            tag=branch_version,
+        ).lower()
+        if proceed_instruction and proceed_instruction != INSTRUCTION_YES:
+            raise ReleaseExit()
+
+        _create_branch_from_tag(verbose, branch_version, new_branch)
+
+        push_instruction = _prompt('Branch created. Would you like to go ahead and push it to remote? (y/N):').lower()
+        if push_instruction and push_instruction == INSTRUCTION_YES:
+            _push_branch(verbose, new_branch)
+
+        _standard_output('Branch process is complete.')
+    except ReleaseFailure as e:
+        _error_output(e.message)
+    except subprocess.CalledProcessError as e:
+        _error_output(
+            'Command {command} failed with error code {error_code}. Command output:\n{output}',
+            command=e.cmd,
+            error_code=e.returncode,
+            output=e.output,
+        )
+    except (ReleaseExit, KeyboardInterrupt):
+        _standard_output('Canceling branch!')
+    finally:
+        _cleanup_task(verbose)
 
 
 @task(help={
