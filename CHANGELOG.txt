@@ -1,6 +1,10 @@
 Changelog
 =========
 
+1.4.0 (2016-08-17)
+------------------
+- Add new task for creating patching branches from release tags
+
 1.3.2 (2016-08-15)
 ------------------
 - Make `invoke release` work with $EDITOR with params
