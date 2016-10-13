@@ -23,6 +23,7 @@ RELEASE_PLUGINS = []
 
 ROOT_DIRECTORY = ''
 VERSION_FILENAME = 'python/unknown/version.py'
+VERSION_FILE_IS_TXT = False
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
 CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
 CHANGELOG_COMMENT_FIRST_CHAR = '#'
@@ -191,25 +192,29 @@ def _write_to_version_file(release_version, verbose):
             'Failed to find version file: {}. File names are case sensitive!'.format(VERSION_FILENAME),
         )
 
-    with open(VERSION_FILENAME, 'rb') as version_read:
-        output = []
-        version_info_written = False
-        version_info = VERSION_INFO_VARIABLE_TEMPLATE.format(tuple([int(v) for v in release_version.split('.')]))
-        for line in version_read:
-            if line.startswith('__version_info__'):
-                output.append(version_info)
-                version_info_written = True
-            elif line.startswith('__version__'):
-                if not version_info_written:
+    if VERSION_FILE_IS_TXT:
+        with open(VERSION_FILENAME, 'wb') as version_write:
+            version_write.write(release_version)
+    else:
+        with open(VERSION_FILENAME, 'rb') as version_read:
+            output = []
+            version_info_written = False
+            version_info = VERSION_INFO_VARIABLE_TEMPLATE.format(tuple([int(v) for v in release_version.split('.')]))
+            for line in version_read:
+                if line.startswith('__version_info__'):
                     output.append(version_info)
-                output.append(VERSION_VARIABLE_TEMPLATE)
-            else:
-                output.append(line.rstrip())
+                    version_info_written = True
+                elif line.startswith('__version__'):
+                    if not version_info_written:
+                        output.append(version_info)
+                    output.append(VERSION_VARIABLE_TEMPLATE)
+                else:
+                    output.append(line.rstrip())
 
-    with open(VERSION_FILENAME, 'wb') as version_write:
-        for line in output:
-            version_write.write(line)
-            version_write.write('\n')
+        with open(VERSION_FILENAME, 'wb') as version_write:
+            for line in output:
+                version_write.write(line)
+                version_write.write('\n')
 
     _verbose_output(verbose, 'Finished writing to {}.version.', MODULE_NAME)
 
@@ -716,6 +721,10 @@ def _revert_remote_commit(release_version, commit_hash, branch_name, verbose):
 
 
 def _import_version_or_exit():
+    if VERSION_FILE_IS_TXT:
+        # if there is version.txt, use that
+        with open(VERSION_FILENAME) as version_txt:
+            return version_txt.read()
     try:
         return __import__('{}.version'.format(MODULE_NAME), fromlist=['__version__']).__version__
     except ImportError, e:
@@ -734,7 +743,7 @@ def _ensure_files_exist(exit_on_failure):
     failure = False
 
     if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
-        _error_output('Version file {} was not found!', VERSION_FILENAME)
+        _error_output('Version file {} was not found!', re.sub('\.\w+$', '.(py|txt)', VERSION_FILENAME))
         failure = True
 
     if not _case_sensitive_regular_file_exists(CHANGELOG_FILENAME):
@@ -808,7 +817,7 @@ def _post_rollback(current_version, rollback_to_version):
 
 def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
-    global ROOT_DIRECTORY, RELEASE_PLUGINS, PARAMETERS_CONFIGURED
+    global ROOT_DIRECTORY, RELEASE_PLUGINS, PARAMETERS_CONFIGURED, VERSION_FILE_IS_TXT
 
     if PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot call configure_release_parameters more than once.')
@@ -827,13 +836,23 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 
     if python_directory:
         import_directory = os.path.normpath(os.path.join(ROOT_DIRECTORY, python_directory))
-        VERSION_FILENAME = os.path.join(
+        version_file_prefix = os.path.join(
             ROOT_DIRECTORY,
-            '{python}/{module}/version.py'.format(python=python_directory, module=MODULE_NAME),
+            '{python}/{module}/version'.format(python=python_directory, module=MODULE_NAME)
         )
     else:
         import_directory = ROOT_DIRECTORY
-        VERSION_FILENAME = os.path.join(ROOT_DIRECTORY, '{}/version.py'.format(MODULE_NAME))
+        version_file_prefix = os.path.join(
+            ROOT_DIRECTORY,
+            '{module}/version'.format(module=MODULE_NAME)
+        )
+
+    if _case_sensitive_regular_file_exists('{}.txt'.format(version_file_prefix)):
+        VERSION_FILE_IS_TXT = True
+        VERSION_FILENAME = '{}.txt'.format(version_file_prefix)
+    else:
+        VERSION_FILE_IS_TXT = False
+        VERSION_FILENAME = '{}.py'.format(version_file_prefix)
 
     if import_directory not in sys.path:
         sys.path.insert(0, import_directory)
