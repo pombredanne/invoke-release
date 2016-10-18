@@ -1,6 +1,10 @@
 Changelog
 =========
 
+2.0.0 (2016-10-18)
+------------------
+- Adding support for storing version in plain text version.txt
+
 1.4.0 (2016-08-17)
 ------------------
 - Add new task for creating patching branches from release tags
