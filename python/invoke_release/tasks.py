@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import shlex
+from wheel import archive
 from distutils.version import LooseVersion
 
 from invoke import task
@@ -36,6 +37,7 @@ __all__ = [
     'configure_release_parameters',
     'version',
     'branch',
+    'wheel',
     'release',
     'rollback_release',
 ]
@@ -1151,3 +1153,26 @@ def rollback_release(_, verbose=False, no_stash=False):
         _standard_output('Canceling release rollback!')
     finally:
         _cleanup_task(verbose)
+
+
+@task
+def wheel(_):
+    """
+    Builds a wheel archive of all files in the Git root directory.
+
+    Future use: Upload to the wheel server.
+
+    :param _: An unused context variable required by Invoke 0.13.0+.
+    """
+    build_instruction = _prompt('Build a wheel archive of {}? (Y/n)'.format(MODULE_DISPLAY_NAME)).lower()
+
+    if build_instruction == INSTRUCTION_NO:
+        _standard_output('Aborting!')
+        return
+
+    base_dir = _get_root_directory()
+    archive_name = archive.make_wheelfile_inner(MODULE_NAME, _get_root_directory())
+    _standard_output('Successfully built the wheel archive {archive_name} at {base_dir}'.format(
+        archive_name=archive_name,
+        base_dir=base_dir
+    ))
