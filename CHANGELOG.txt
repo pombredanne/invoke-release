@@ -1,6 +1,13 @@
 Changelog
 =========
 
+3.0.0 (2017-03-17)
+------------------
+- Made Python 3 compatible
+- Fixed bug in `rollback_release` preventing it from working
+- Fixed bug in `setup.py` preventing it from installing
+- Added a `build_wheel` task
+
 2.0.0 (2016-10-18)
 ------------------
 - Adding support for storing version in plain text version.txt

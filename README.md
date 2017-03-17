@@ -34,7 +34,7 @@ manually/separately install `invoke`.) If you need to specify an exact version o
 (replacing the tag name as necessary, and using `sudo` as necessary as described above):
 
 ```
-$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@2.0.0
+$ pip install -U git+ssh://git@github.com/eventbrite/invoke-release.git@3.0.0
 ```
 
 You can confirm that the project and its requirements were successfully installed by checking the version:
@@ -53,7 +53,7 @@ properly and that the tools are installed on your machine:
 $ invoke --version
 Invoke 0.13.0
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 2.0.0
+Eventbrite Command Line Release Tools ("Invoke Release") 3.0.0
 EB Common 1.8.2
 ```
 
@@ -135,7 +135,7 @@ and verify the output. Address any errors that you see.
 
 ```
 $ invoke version
-Eventbrite Command Line Release Tools ("Invoke Release") 2.0.0
+Eventbrite Command Line Release Tools ("Invoke Release") 3.0.0
 EB Common 1.8.2
 ```
 
