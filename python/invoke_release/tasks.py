@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import datetime
 import os
 import re
@@ -5,10 +7,11 @@ import subprocess
 import sys
 import tempfile
 import shlex
-from wheel import archive
 from distutils.version import LooseVersion
 
 from invoke import task
+from six import moves
+from wheel import archive
 
 VERSION_RE = r'^\d+\.\d+\.\d+$'
 VERSION_VARIABLE_RE = '^__version__ = \d+\.\d+\.\d+$'
@@ -110,7 +113,7 @@ def _print_output(color, message, *args, **kwargs):
         )
         _output.flush()
     else:
-        print message.format(*args, **kwargs)
+        print(message.format(*args, **kwargs))
 
 
 def _standard_output(message, *args, **kwargs):
@@ -119,7 +122,7 @@ def _standard_output(message, *args, **kwargs):
 
 def _prompt(message, *args, **kwargs):
     _print_output(COLOR_WHITE, message + ' ', *args, **kwargs)
-    response = raw_input()
+    response = moves.input()
     if response:
         return response.strip()
     return ''
@@ -635,7 +638,7 @@ def _get_remote_branches_with_commit(commit_hash, verbose):
     on_remote = []
     for line in result.splitlines():
         line = line.strip()
-        if line.startswith('origin/'):
+        if line.startswith('origin/') and not line.startswith('origin/HEAD'):
             on_remote.append(line)
 
     _verbose_output(
@@ -729,7 +732,7 @@ def _import_version_or_exit():
             return version_txt.read()
     try:
         return __import__('{}.version'.format(MODULE_NAME), fromlist=['__version__']).__version__
-    except ImportError, e:
+    except ImportError as e:
         import pprint
         _error_output_exit(
             'Could not import `__version__` from `{module}.version`. Error was "ImportError: {err}." Path is:\n{path}',
@@ -737,7 +740,7 @@ def _import_version_or_exit():
             err=e.message,
             path=pprint.pformat(sys.path),
         )
-    except AttributeError, e:
+    except AttributeError as e:
         _error_output_exit('Could not retrieve `__version__` from imported module. Error was "{}."', e.message)
 
 
@@ -986,7 +989,7 @@ def release(_, verbose=False, no_stash=False):
 
     try:
         _pre_release(__version__)
-    except ReleaseFailure, e:
+    except ReleaseFailure as e:
         _error_output_exit(e.message)
 
     _setup_task(no_stash, verbose)
@@ -1091,7 +1094,7 @@ def rollback_release(_, verbose=False, no_stash=False):
 
     try:
         _pre_rollback(__version__)
-    except ReleaseFailure, e:
+    except ReleaseFailure as e:
         _error_output_exit(e.message)
 
     _setup_task(no_stash, verbose)
@@ -1134,7 +1137,7 @@ def rollback_release(_, verbose=False, no_stash=False):
                 _standard_output('The commit was not reverted.')
 
             module = __import__('{}.version'.format(MODULE_NAME), fromlist=['__version__'])
-            reload(module)
+            moves.reload_module(module)
             _post_rollback(__version__, module.__version__)
 
             _standard_output('Release rollback is complete.')
