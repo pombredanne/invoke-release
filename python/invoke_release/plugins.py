@@ -1,10 +1,9 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
+import codecs
 import os
 
-from invoke_release.tasks import (
-    ReleaseFailure,
-)
+from invoke_release.tasks import ReleaseFailure
 
 
 class AbstractInvokeReleasePlugin(object):
@@ -156,10 +155,10 @@ class PatternReplaceVersionInFilesPlugin(AbstractInvokeReleasePlugin):
     def pre_commit(self, root_directory, old_version, new_version):
         for file_name in self.get_extra_files_to_commit(root_directory):
             contents = []
-            with open(file_name, 'r') as file_read:
+            with codecs.open(file_name, 'rb', encoding='utf8') as file_read:
                 for line in file_read:
                     contents.append(line.rstrip().replace(old_version, new_version))
-            with open(file_name, 'w') as file_write:
+            with codecs.open(file_name, 'wb', encoding='utf8') as file_write:
                 for line in contents:
                     file_write.write(line)
                     file_write.write('\n')

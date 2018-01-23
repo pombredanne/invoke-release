@@ -1,5 +1,6 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
+import codecs
 import datetime
 import os
 import re
@@ -10,14 +11,23 @@ import shlex
 from distutils.version import LooseVersion
 
 from invoke import task
+import six
 from six import moves
 from wheel import archive
 
-VERSION_RE = r'^\d+\.\d+\.\d+$'
-VERSION_VARIABLE_RE = '^__version__ = \d+\.\d+\.\d+$'
+RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
+RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
+RE_FILE_EXTENSION = re.compile('\.\w+$')
+RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.-]*[a-zA-Z\d]+)?$')
+RE_VERSION_BRANCH_MAJOR = re.compile(r'^\d+\.x\.x$')
+RE_VERSION_BRANCH_MINOR = re.compile(r'^\d+\.\d+\.x$')
+RE_SPLIT_AFTER_DIGITS = re.compile(r'(\d+)')
 
 VERSION_INFO_VARIABLE_TEMPLATE = '__version_info__ = {}'
-VERSION_VARIABLE_TEMPLATE = "__version__ = '.'.join(map(str, __version_info__))"
+VERSION_VARIABLE_TEMPLATE = (
+    "__version__ = '-'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
+    "(__version_info__[3:] or [None])[0]]))"
+)
 RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}.'
 
 MODULE_NAME = 'unknown'
@@ -29,7 +39,6 @@ ROOT_DIRECTORY = ''
 VERSION_FILENAME = 'python/unknown/version.py'
 VERSION_FILE_IS_TXT = False
 CHANGELOG_FILENAME = 'CHANGELOG.txt'
-CHANGELOG_RC_FILENAME = '.gitchangelog.rc'
 CHANGELOG_COMMENT_FIRST_CHAR = '#'
 
 PARAMETERS_CONFIGURED = False
@@ -68,6 +77,7 @@ INSTRUCTION_ACCEPT = 'accept'
 INSTRUCTION_DELETE = 'delete'
 INSTRUCTION_EXIT = 'exit'
 INSTRUCTION_ROLLBACK = 'rollback'
+INSTRUCTION_MAJOR = 'major'
 
 
 class ErrorStreamWrapper(object):
@@ -87,6 +97,7 @@ class ErrorStreamWrapper(object):
             return super(ErrorStreamWrapper, self).__getattribute__(item)
         except AttributeError:
             return self.wrapped.__getattribute__(item)
+
 
 sys.stderr = ErrorStreamWrapper(sys.stderr)
 
@@ -117,19 +128,23 @@ def _print_output(color, message, *args, **kwargs):
 
 
 def _standard_output(message, *args, **kwargs):
-    _print_output(COLOR_GREEN_BOLD, message + "\n", *args, **kwargs)
+    _print_output(COLOR_GREEN_BOLD, message + '\n', *args, **kwargs)
 
 
 def _prompt(message, *args, **kwargs):
     _print_output(COLOR_WHITE, message + ' ', *args, **kwargs)
+    # noinspection PyCompatibility
     response = moves.input()
     if response:
+        if not isinstance(response, six.text_type):
+            # Input returns a bytestring in Python 2 and a unicode string in Python 3
+            return response.decode('utf8').strip()
         return response.strip()
     return ''
 
 
 def _error_output(message, *args, **kwargs):
-    _print_output(COLOR_RED_BOLD, ''.join(('ERROR: ', message, "\n")), *args, **kwargs)
+    _print_output(COLOR_RED_BOLD, ''.join(('ERROR: ', message, '\n')), *args, **kwargs)
 
 
 def _error_output_exit(message, *args, **kwargs):
@@ -139,7 +154,7 @@ def _error_output_exit(message, *args, **kwargs):
 
 def _verbose_output(verbose, message, *args, **kwargs):
     if verbose:
-        _print_output(COLOR_GRAY_LIGHT, ''.join(('DEBUG: ', message, "\n")), *args, **kwargs)
+        _print_output(COLOR_GRAY_LIGHT, ''.join(('DEBUG: ', message, '\n')), *args, **kwargs)
 
 
 def _case_sensitive_regular_file_exists(filename):
@@ -154,7 +169,7 @@ def _get_root_directory():
     root_directory = subprocess.check_output(
         ['git', 'rev-parse', '--show-toplevel'],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     if not root_directory:
         _error_output_exit('Failed to find Git root directory.')
@@ -170,7 +185,7 @@ def _setup_task(no_stash, verbose):
         result = subprocess.check_output(
             ['git', 'stash'],
             stderr=sys.stderr,
-        )
+        ).decode('utf8')
         if result.startswith('Saved'):
             __POST_APPLY = True
 
@@ -189,7 +204,7 @@ def _cleanup_task(verbose):
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
 
-def _write_to_version_file(release_version, verbose):
+def _write_to_version_file(release_version, version_info, verbose):
     _verbose_output(verbose, 'Writing version to {}...', VERSION_FILENAME)
 
     if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
@@ -198,13 +213,14 @@ def _write_to_version_file(release_version, verbose):
         )
 
     if VERSION_FILE_IS_TXT:
-        with open(VERSION_FILENAME, 'wb') as version_write:
+        with codecs.open(VERSION_FILENAME, 'wb', encoding='utf8') as version_write:
             version_write.write(release_version)
     else:
-        with open(VERSION_FILENAME, 'rb') as version_read:
+        with codecs.open(VERSION_FILENAME, 'rb', encoding='utf8') as version_read:
             output = []
             version_info_written = False
-            version_info = VERSION_INFO_VARIABLE_TEMPLATE.format(tuple([int(v) for v in release_version.split('.')]))
+            # We replace u' with ' in this, because Py2 projects should use unicode_literals in their version file
+            version_info = VERSION_INFO_VARIABLE_TEMPLATE.format(tuple(version_info)).replace(", u'", ", '")
             for line in version_read:
                 if line.startswith('__version_info__'):
                     output.append(version_info)
@@ -216,10 +232,9 @@ def _write_to_version_file(release_version, verbose):
                 else:
                     output.append(line.rstrip())
 
-        with open(VERSION_FILENAME, 'wb') as version_write:
+        with codecs.open(VERSION_FILENAME, 'wb', encoding='utf8') as version_write:
             for line in output:
-                version_write.write(line)
-                version_write.write('\n')
+                version_write.write(line + '\n')
 
     _verbose_output(verbose, 'Finished writing to {}.version.', MODULE_NAME)
 
@@ -235,8 +250,7 @@ def _gather_commit_messages(verbose):
         '--grep={}'.format(RELEASE_MESSAGE_TEMPLATE.replace(' {}.', '').replace('"', '\\"'))
     ]
     _verbose_output(verbose, 'Running command: "{}"', '" "'.join(command))
-    commit_hash = subprocess.check_output(command, stderr=sys.stderr)
-    commit_hash = commit_hash.strip()
+    commit_hash = subprocess.check_output(command, stderr=sys.stderr).decode('utf8').strip()
 
     if not commit_hash:
         _verbose_output(verbose, 'No previous release commit was found. Not gathering messages.')
@@ -249,7 +263,7 @@ def _gather_commit_messages(verbose):
         '{}..HEAD'.format(commit_hash)
     ]
     _verbose_output(verbose, 'Running command: "{}"', '" "'.join(command))
-    output = subprocess.check_output(command, stderr=sys.stderr)
+    output = subprocess.check_output(command, stderr=sys.stderr).decode('utf8')
 
     messages = []
     for message in output.splitlines():
@@ -272,17 +286,24 @@ def _prompt_for_changelog(verbose):
     changelog_footer = []
 
     _verbose_output(verbose, 'Reading changelog file {} looking for built-up changes...', CHANGELOG_FILENAME)
-    with open(CHANGELOG_FILENAME, 'rb') as changelog_read:
+    with codecs.open(CHANGELOG_FILENAME, 'rb', encoding='utf8') as changelog_read:
         previous_line = ''
         passed_header = passed_changelog = False
         for line_number, line in enumerate(changelog_read):
             if not passed_header:
                 changelog_header.append(line)
-                if re.search('^=+$', line):
+                # .txt and .md changelog files start like this:
+                #     Changelog
+                #     =========
+                # .rst changelog files start like this
+                #     =========
+                #     Changelog
+                #     =========
+                if line_number > 0 and RE_CHANGELOG_FILE_HEADER.search(line):
                     passed_header = True
                 continue
 
-            if not passed_changelog and re.search('^-+$', line):
+            if not passed_changelog and RE_CHANGELOG_VERSION_HEADER.search(line):
                 changelog_footer.append(previous_line)
                 passed_changelog = True
 
@@ -295,7 +316,9 @@ def _prompt_for_changelog(verbose):
                 previous_line = line
 
     if len(built_up_changelog) > 0:
-        _verbose_output(verbose, 'Read {} lines of built-up changelog text.', len(built_up_changelog))
+        _verbose_output(verbose, 'Read {} lines of built-up changelog text:', len(built_up_changelog))
+        if verbose:
+            _verbose_output(verbose, six.text_type(built_up_changelog))
         _standard_output('There are existing changelog details for this release. You can "edit" the changes, '
                          '"accept" them as-is, delete them and create a "new" changelog message, or "delete" '
                          'them and enter no changelog.')
@@ -329,11 +352,12 @@ def _prompt_for_changelog(verbose):
         elif gather == INSTRUCTION_EXIT:
             raise ReleaseExit()
 
-        with tempfile.NamedTemporaryFile() as tf:
+        tf_o = tempfile.NamedTemporaryFile(mode='wb')
+        codec = codecs.lookup('utf8')
+        with codecs.StreamReaderWriter(tf_o, codec.streamreader, codec.streamwriter, 'strict') as tf:
             _verbose_output(verbose, 'Opened temporary file {} for editing changelog.', tf.name)
             if commit_messages:
-                tf.write('\n'.join(commit_messages))
-                tf.write('\n')
+                tf.write('\n'.join(commit_messages) + '\n')
             if built_up_changelog:
                 tf.writelines(built_up_changelog)
             tf.writelines([
@@ -372,7 +396,7 @@ def _prompt_for_changelog(verbose):
                 raise ReleaseFailure(message.format(**args))
             _verbose_output(verbose, 'User has closed editor')
 
-            with open(tf.name, 'rb') as read:
+            with codecs.open(tf.name, 'rb', encoding='utf8') as read:
                 for line in read:
                     if line and line.strip() and not line.startswith(CHANGELOG_COMMENT_FIRST_CHAR):
                         changelog_message.append(line)
@@ -389,21 +413,18 @@ def _write_to_changelog_file(release_version, changelog_header, changelog_messag
             'Failed to find changelog file: {}. File names are case sensitive!'.format(CHANGELOG_FILENAME),
         )
 
-    with open(CHANGELOG_FILENAME, 'wb') as changelog_write:
+    with codecs.open(CHANGELOG_FILENAME, 'wb', encoding='utf8') as changelog_write:
         header_line = '{version} ({date})'.format(
             version=release_version,
             date=datetime.datetime.now().strftime('%Y-%m-%d'),
         )
 
-        changelog_write.writelines(changelog_header)
-        changelog_write.write('\n')
+        changelog_write.writelines(changelog_header + ['\n'])
         if changelog_message:
             changelog_write.writelines([
-                header_line, '\n',
-                '-' * len(header_line), '\n',
+                header_line, '\n', '-' * len(header_line), '\n',
             ])
-            changelog_write.writelines(changelog_message)
-            changelog_write.write('\n')
+            changelog_write.writelines(changelog_message + ['\n'])
         changelog_write.writelines(changelog_footer)
 
     _verbose_output(verbose, 'Finished writing to changelog.')
@@ -412,18 +433,92 @@ def _write_to_changelog_file(release_version, changelog_header, changelog_messag
 def _tag_branch(release_version, verbose, overwrite=False):
     _verbose_output(verbose, 'Tagging branch...')
 
+    try:
+        gpg = subprocess.check_output(['which', 'gpg']).decode('utf8').strip()
+        _verbose_output(verbose, 'Found location of `gpg` to be {}'.format(gpg))
+    except subprocess.CalledProcessError:
+        gpg = None
+    if not gpg:
+        try:
+            gpg = subprocess.check_output(['which', 'gpg2']).decode('utf8').strip()
+            _verbose_output(verbose, 'Found location of `gpg2` to be {}'.format(gpg))
+        except subprocess.CalledProcessError:
+            gpg = None
+
+    try:
+        tty = subprocess.check_output(['tty']).decode('utf8').strip()
+        _verbose_output(verbose, 'Found location of `tty` to be {}'.format(tty))
+    except subprocess.CalledProcessError:
+        _verbose_output(verbose, 'Could not get tty path ... Maybe a problem? Maybe not.')
+        tty = ''
+
     release_message = RELEASE_MESSAGE_TEMPLATE.format(release_version)
     cmd = ['git', 'tag', '-a', release_version, '-m', release_message]
     if overwrite:
         cmd.append('-f')
 
+    signed = False
+    if gpg:
+        sign_with_key = _prompt(
+            'GPG is installed on your system. Would you like to sign the release tag with your GitHub committer email '
+            'GPG key? (y/N/[alternative key ID])',
+        ).lower() or INSTRUCTION_NO
+
+        if sign_with_key == INSTRUCTION_YES:
+            cmd.append('-s')
+        elif sign_with_key != INSTRUCTION_NO:
+            cmd.extend(['-u', sign_with_key])
+
+        if sign_with_key != INSTRUCTION_NO:
+            signed = True
+            try:
+                subprocess.check_output(
+                    ['git', 'config', '--global', 'gpg.program', gpg],
+                )
+            except subprocess.CalledProcessError as e:
+                raise ReleaseFailure(
+                    'Failed to configure Git+GPG. Something is not right. Aborting.\n{code}: {output}'.format(
+                        code=e.returncode,
+                        output=e.output.decode('utf8'),
+                    )
+                )
+    else:
+        _standard_output('GPG is not installed on your system. Will not sign the release tag.')
+
     try:
-        result = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        result = subprocess.check_output(
+            cmd,
+            stderr=subprocess.STDOUT,
+            env=dict(os.environ, GPG_TTY=tty),
+        ).decode('utf8')
     except subprocess.CalledProcessError as e:
-        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output)
+        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output.decode('utf8'))
 
     if result:
+        if 'unable to sign the tag' in result:
+            raise ReleaseFailure(
+                'Failed tagging branch due to error signing the tag. Perhaps you need to create a code-signing key, or '
+                'the alternate key ID you specified was incorrect?\n\n'
+                'Suggestions:\n'
+                ' - Generate a key with `{gpg} --get-key` (GPG v1) or `{gpg} --full-gen-key` (GPG v2) (and use 4096)\n'
+                ' - It is not enough for the key email to match your committer email; the full display name must '
+                'match, too (e.g. "First Last <email@example.org>")\n'
+                ' - If the key display name does not match the committer display name, use the alternate key ID\n'
+                'Error output: {output}'.format(gpg=gpg, output=result)
+            )
         raise ReleaseFailure('Failed tagging branch: {}'.format(result))
+
+    if signed:
+        try:
+            subprocess.check_call(
+                ['git', 'tag', '-v', release_version],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+        except subprocess.CalledProcessError:
+            raise ReleaseFailure(
+                'Successfully created a signed release tag, but failed to verify its signature. Something is not right.'
+            )
 
     _verbose_output(verbose, 'Finished tagging branch.')
 
@@ -440,7 +535,7 @@ def _commit_release_changes(release_version, changelog_lines, verbose):
             stderr=subprocess.STDOUT,
         )
     except subprocess.CalledProcessError as e:
-        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output)
+        result = '`git` command exit code {code} - {output}'.format(code=e.returncode, output=e.output.decode('utf8'))
 
     if result:
         raise ReleaseFailure('Failed staging release files for commit: {}'.format(result))
@@ -498,8 +593,15 @@ def _push_release_changes(release_version, branch_name, verbose):
         return PUSH_RESULT_ROLLBACK
     else:
         _standard_output('Not pushing changes to remote origin!')
-        _standard_output('Make sure you remember to explicitly push the tag, or '
-                         'revert your local changes if you are trying to cancel!')
+        _print_output(
+            COLOR_RED_BOLD,
+            'Make sure you remember to explicitly push {branch} and the tag (or revert your local changes if you are '
+            'trying to cancel)! You can push with the following commands:\n'
+            '    git push origin {branch}:{branch}\n'
+            '    git push origin "{version}"\n',
+            branch=branch_name,
+            version=release_version,
+        )
 
         return PUSH_RESULT_NO_ACTION
 
@@ -510,7 +612,7 @@ def _get_last_commit_hash(verbose):
     commit_hash = subprocess.check_output(
         ['git', 'log', '-n', '1', '--pretty=format:%H'],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     _verbose_output(verbose, 'Last commit hash is {}.', commit_hash)
 
@@ -523,7 +625,7 @@ def _get_commit_subject(commit_hash, verbose):
     message = subprocess.check_output(
         ['git', 'log', '-n', '1', '--pretty=format:%s', commit_hash],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     _verbose_output(verbose, 'Commit message for hash {hash} is "{value}".', hash=commit_hash, value=message)
 
@@ -536,7 +638,7 @@ def _get_branch_name(verbose):
     branch_name = subprocess.check_output(
         ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     _verbose_output(verbose, 'Current Git branch name is {}.', branch_name)
 
@@ -585,7 +687,7 @@ def _get_tag_list(verbose):
     result = subprocess.check_output(
         ['git', 'tag', '--list'],
         stderr=sys.stderr,
-    ).strip().split()
+    ).decode('utf8').strip().split()
 
     _verbose_output(verbose, 'Result of tag list parsing is {}.', result)
 
@@ -598,7 +700,7 @@ def _does_tag_exist_locally(release_version, verbose):
     result = subprocess.check_output(
         ['git', 'tag', '--list', release_version],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     exists = release_version in result
 
@@ -613,7 +715,7 @@ def _is_tag_on_remote(release_version, verbose):
     result = subprocess.check_output(
         ['git', 'ls-remote', '--tags', 'origin', release_version],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     on_remote = release_version in result
 
@@ -633,7 +735,7 @@ def _get_remote_branches_with_commit(commit_hash, verbose):
     result = subprocess.check_output(
         ['git', 'branch', '-r', '--contains', commit_hash],
         stderr=sys.stderr,
-    ).strip()
+    ).decode('utf8').strip()
 
     on_remote = []
     for line in result.splitlines():
@@ -728,31 +830,31 @@ def _revert_remote_commit(release_version, commit_hash, branch_name, verbose):
 def _import_version_or_exit():
     if VERSION_FILE_IS_TXT:
         # if there is version.txt, use that
-        with open(VERSION_FILENAME) as version_txt:
+        with codecs.open(VERSION_FILENAME, 'rb', encoding='utf8') as version_txt:
             return version_txt.read()
     try:
-        return __import__('{}.version'.format(MODULE_NAME), fromlist=['__version__']).__version__
+        return __import__('{}.version'.format(MODULE_NAME), fromlist=[str('__version__')]).__version__
     except ImportError as e:
         import pprint
         _error_output_exit(
             'Could not import `__version__` from `{module}.version`. Error was "ImportError: {err}." Path is:\n{path}',
             module=MODULE_NAME,
-            err=e.message,
+            err=e.args[0],
             path=pprint.pformat(sys.path),
         )
     except AttributeError as e:
-        _error_output_exit('Could not retrieve `__version__` from imported module. Error was "{}."', e.message)
+        _error_output_exit('Could not retrieve `__version__` from imported module. Error was "{}."', e.args[0])
 
 
 def _ensure_files_exist(exit_on_failure):
     failure = False
 
     if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
-        _error_output('Version file {} was not found!', re.sub('\.\w+$', '.(py|txt)', VERSION_FILENAME))
+        _error_output('Version file {} was not found!', RE_FILE_EXTENSION.sub('.(py|txt)', VERSION_FILENAME))
         failure = True
 
     if not _case_sensitive_regular_file_exists(CHANGELOG_FILENAME):
-        _error_output('Changelog file {} was not found!', CHANGELOG_FILENAME)
+        _error_output('Changelog file {} was not found!', RE_FILE_EXTENSION.sub('.(txt|md|rst)', CHANGELOG_FILENAME))
         failure = True
 
     if failure:
@@ -770,10 +872,10 @@ def _ensure_configured(command):
     _ensure_files_exist(True)
 
 
-def _set_map(function, iterable):
+def _set_map(map_function, iterable):
     ret = set()
     for i in iterable:
-        r = function(i)
+        r = map_function(i)
         if r:
             if getattr(r, '__iter__', None):
                 ret.update(r)
@@ -837,7 +939,6 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
     RELEASE_MESSAGE_TEMPLATE = 'Released {} version {{}}.'.format(MODULE_DISPLAY_NAME)
 
     ROOT_DIRECTORY = os.path.normpath(_get_root_directory())
-    CHANGELOG_FILENAME = os.path.join(ROOT_DIRECTORY, 'CHANGELOG.txt')
 
     if python_directory:
         import_directory = os.path.normpath(os.path.join(ROOT_DIRECTORY, python_directory))
@@ -852,12 +953,21 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
             '{module}/version'.format(module=MODULE_NAME)
         )
 
+    changelog_file_prefix = os.path.join(ROOT_DIRECTORY, 'CHANGELOG')
+
     if _case_sensitive_regular_file_exists('{}.txt'.format(version_file_prefix)):
         VERSION_FILE_IS_TXT = True
         VERSION_FILENAME = '{}.txt'.format(version_file_prefix)
     else:
         VERSION_FILE_IS_TXT = False
         VERSION_FILENAME = '{}.py'.format(version_file_prefix)
+
+    CHANGELOG_FILENAME = '{}.txt'.format(changelog_file_prefix)
+    if not _case_sensitive_regular_file_exists('{}.txt'.format(changelog_file_prefix)):
+        if _case_sensitive_regular_file_exists('{}.md'.format(changelog_file_prefix)):
+            CHANGELOG_FILENAME = '{}.md'.format(changelog_file_prefix)
+        elif _case_sensitive_regular_file_exists('{}.rst'.format(changelog_file_prefix)):
+            CHANGELOG_FILENAME = '{}.rst'.format(changelog_file_prefix)
 
     if import_directory not in sys.path:
         sys.path.insert(0, import_directory)
@@ -872,11 +982,14 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 def version(_):
     """
     Prints the "Invoke Release" version and the version of the current project.
-
-    :param _: An unused context variable required by Invoke 0.13.0+.
     """
     if not PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot `invoke version` before calling `configure_release_parameters`.')
+
+    _standard_output('Python {}', sys.version.split('\n')[0].strip())
+
+    from invoke import __version__ as invoke_version
+    _standard_output('Invoke {}', invoke_version)
 
     from invoke_release.version import __version__
     _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
@@ -887,8 +1000,9 @@ def version(_):
         _error_output(error)
 
     _standard_output('{module} {version}', module=MODULE_DISPLAY_NAME, version=_import_version_or_exit())
-
     _standard_output('Detected Git branch: {}', _get_branch_name(False))
+    _standard_output('Detected version file: {}', VERSION_FILENAME)
+    _standard_output('Detected changelog file: {}', CHANGELOG_FILENAME)
 
 
 @task(help={
@@ -898,11 +1012,7 @@ def version(_):
 })
 def branch(_, verbose=False, no_stash=False):
     """
-    Creates a patching branch from a release tag for creating a new patch release from that branch.
-
-    :param _: An unused context variable required by Invoke 0.13.0+.
-    :param verbose: See @task help above.
-    :param no_stash: See @task help above.
+    Creates a branch from a release tag for creating a new patch or minor release from that branch.
     """
     _ensure_configured('release')
 
@@ -923,31 +1033,39 @@ def branch(_, verbose=False, no_stash=False):
             raise ReleaseFailure('Version number {} not in the list of available tags.'.format(branch_version))
 
         _v = LooseVersion(branch_version)
-        new_branch = '.'.join(map(str, _v.version[:2]) + ['x'])
+        minor_branch = '.'.join(list(map(six.text_type, _v.version[:2])) + ['x'])
+        major_branch = '.'.join(list(map(six.text_type, _v.version[:1])) + ['x', 'x'])
 
         proceed_instruction = _prompt(
-            'About to create branch {branch} from tag {tag}. Are you ready to proceed? (Y/n):',
-            branch=new_branch,
+            'Using tag {tag}, would you like to create a minor branch for patch versions (branch {minor}, '
+            'recommended), or a major branch for minor versions (branch {major})? (MINOR/major/exit):',
             tag=branch_version,
-        ).lower()
-        if proceed_instruction and proceed_instruction != INSTRUCTION_YES:
+            minor=minor_branch,
+            major=major_branch,
+        )
+
+        if proceed_instruction == INSTRUCTION_EXIT:
             raise ReleaseExit()
 
+        new_branch = major_branch if proceed_instruction == INSTRUCTION_MAJOR else minor_branch
         _create_branch_from_tag(verbose, branch_version, new_branch)
 
-        push_instruction = _prompt('Branch created. Would you like to go ahead and push it to remote? (y/N):').lower()
+        push_instruction = _prompt(
+            'Branch {} created. Would you like to go ahead and push it to remote? (y/N):',
+            new_branch,
+        ).lower()
         if push_instruction and push_instruction == INSTRUCTION_YES:
             _push_branch(verbose, new_branch)
 
         _standard_output('Branch process is complete.')
     except ReleaseFailure as e:
-        _error_output(e.message)
+        _error_output(e.args[0])
     except subprocess.CalledProcessError as e:
         _error_output(
             'Command {command} failed with error code {error_code}. Command output:\n{output}',
             command=e.cmd,
             error_code=e.returncode,
-            output=e.output,
+            output=e.output.decode('utf8'),
         )
     except (ReleaseExit, KeyboardInterrupt):
         _standard_output('Canceling branch!')
@@ -963,10 +1081,6 @@ def branch(_, verbose=False, no_stash=False):
 def release(_, verbose=False, no_stash=False):
     """
     Increases the version, adds a changelog message, and tags a new version of this project.
-
-    :param _: An unused context variable required by Invoke 0.13.0+.
-    :param verbose: See @task help above.
-    :param no_stash: See @task help above.
     """
     _ensure_configured('release')
 
@@ -975,11 +1089,23 @@ def release(_, verbose=False, no_stash=False):
 
     __version__ = _import_version_or_exit()
 
+    version_regular_expression = RE_VERSION
+
     branch_name = _get_branch_name(verbose)
     if branch_name != BRANCH_MASTER:
+        if not RE_VERSION_BRANCH_MAJOR.match(branch_name) and not RE_VERSION_BRANCH_MINOR.match(branch_name):
+            _error_output(
+                'You are currently on branch "{}" instead of "master." You should only release from master or version '
+                'branches, and this does not appear to be a version branch (must match \d+\.x\.x or \d+.\d+\.x). '
+                '\nCanceling release!',
+                branch_name,
+            )
+            return
+
         instruction = _prompt(
-            'You are currently on branch "{branch}" instead of "master." You should release ONLY patch versions '
-            'from branches other than master.\nAre you sure you want to continue releasing from "{branch}?" (y/N)',
+            'You are currently on branch "{branch}" instead of "master." Are you sure you want to continue releasing '
+            'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
+            'released from the parent branch. (y/N)',
             branch=branch_name,
         ).lower()
 
@@ -987,10 +1113,14 @@ def release(_, verbose=False, no_stash=False):
             _standard_output('Canceling release!')
             return
 
+        version_regular_expression = re.compile(
+            r'^' + branch_name.replace('.x', r'.\d+').replace('.', r'\.') + r'([a-zA-Z\d.-]*[a-zA-Z\d]+)?$',
+        )
+
     try:
         _pre_release(__version__)
     except ReleaseFailure as e:
-        _error_output_exit(e.message)
+        _error_output_exit(e.args[0])
 
     _setup_task(no_stash, verbose)
     try:
@@ -1000,13 +1130,29 @@ def release(_, verbose=False, no_stash=False):
         release_version = _prompt('Enter a new version (or "exit"):').lower()
         if not release_version or release_version == INSTRUCTION_EXIT:
             raise ReleaseExit()
-        if not re.match(VERSION_RE, release_version):
+
+        if not version_regular_expression.match(release_version):
             raise ReleaseFailure(
                 'Invalid version specified: {version}. Must match "{regex}".'.format(
                     version=release_version,
-                    regex=VERSION_RE,
+                    regex=version_regular_expression.pattern,
                 ),
             )
+
+        # Deconstruct and reconstruct the version, to make sure it is consistent everywhere
+        version_info = release_version.split('.', 2)
+        end_parts = list(filter(None, RE_SPLIT_AFTER_DIGITS.split(version_info[2], 1)))
+        if len(end_parts) > 1:
+            version_info[0] = int(version_info[0])
+            version_info[1] = int(version_info[1])
+            version_info[2] = int(end_parts[0])
+            version_info.append(end_parts[1].strip(' .-_'))
+        else:
+            version_info = list(map(int, version_info))
+        release_version = '-'.join(
+            filter(None, ['.'.join(map(six.text_type, version_info[:3])), (version_info[3:] or [None])[0]])
+        )  # This must match the code in VERSION_VARIABLE_TEMPLATE at the top of this file
+
         if not (LooseVersion(release_version) > LooseVersion(__version__)):
             raise ReleaseFailure(
                 'New version number {new_version} is not greater than current version {old_version}.'.format(
@@ -1014,6 +1160,7 @@ def release(_, verbose=False, no_stash=False):
                     old_version=__version__,
                 ),
             )
+
         if _does_tag_exist_locally(release_version, verbose) or _is_tag_on_remote(release_version, verbose):
             raise ReleaseFailure(
                 'Tag {} already exists locally or remotely (or both). Cannot create version.'.format(release_version),
@@ -1021,13 +1168,13 @@ def release(_, verbose=False, no_stash=False):
 
         cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
 
-        instruction = _prompt('No changes have been committed yet. Are you ready to commit the release? (Y/n)').lower()
+        instruction = _prompt('The release has not yet been committed. Are you ready to commit the it? (Y/n)').lower()
         if instruction and instruction != INSTRUCTION_YES:
             raise ReleaseExit()
 
         _standard_output('Releasing {module} version: {version}', module=MODULE_DISPLAY_NAME, version=release_version)
 
-        _write_to_version_file(release_version, verbose)
+        _write_to_version_file(release_version, version_info, verbose)
         _write_to_changelog_file(release_version, cl_header, cl_message, cl_footer, verbose)
 
         _pre_commit(__version__, release_version)
@@ -1043,13 +1190,13 @@ def release(_, verbose=False, no_stash=False):
 
         _standard_output('Release process is complete.')
     except ReleaseFailure as e:
-        _error_output(e.message)
+        _error_output(e.args[0])
     except subprocess.CalledProcessError as e:
         _error_output(
             'Command {command} failed with error code {error_code}. Command output:\n{output}',
             command=e.cmd,
             error_code=e.returncode,
-            output=e.output,
+            output=e.output.decode('utf8'),
         )
     except (ReleaseExit, KeyboardInterrupt):
         _standard_output('Canceling release!')
@@ -1068,10 +1215,6 @@ def rollback_release(_, verbose=False, no_stash=False):
     (if local only) or reverts (if remote) the last commit. This is fairly safe to do if the release has not
     yet been pushed to remote, but extreme caution should be exercised when invoking this after the release has
     been pushed to remote.
-
-    :param _: An unused context variable required by Invoke 0.13.0+.
-    :param verbose:  See @task help above.
-    :param no_stash:  See @task help above.
     """
     _ensure_configured('rollback_release')
 
@@ -1095,7 +1238,7 @@ def rollback_release(_, verbose=False, no_stash=False):
     try:
         _pre_rollback(__version__)
     except ReleaseFailure as e:
-        _error_output_exit(e.message)
+        _error_output_exit(e.args[0])
 
     _setup_task(no_stash, verbose)
     try:
@@ -1136,21 +1279,22 @@ def rollback_release(_, verbose=False, no_stash=False):
             else:
                 _standard_output('The commit was not reverted.')
 
-            module = __import__('{}.version'.format(MODULE_NAME), fromlist=['__version__'])
-            moves.reload_module(module)
-            _post_rollback(__version__, module.__version__)
+            version_module = __import__('{}.version'.format(MODULE_NAME), fromlist=[str('__version__')])
+            # noinspection PyCompatibility
+            moves.reload_module(version_module)
+            _post_rollback(__version__, version_module.__version__)
 
             _standard_output('Release rollback is complete.')
         else:
             raise ReleaseExit()
     except ReleaseFailure as e:
-        _error_output(e.message)
+        _error_output(e.args[0])
     except subprocess.CalledProcessError as e:
         _error_output(
             'Command {command} failed with error code {error_code}. Command output:\n{output}',
             command=e.cmd,
             error_code=e.returncode,
-            output=e.output,
+            output=e.output.decode('utf8'),
         )
     except (ReleaseExit, KeyboardInterrupt):
         _standard_output('Canceling release rollback!')
@@ -1163,9 +1307,7 @@ def wheel(_):
     """
     Builds a wheel archive of all files in the Git root directory.
 
-    Future use: Upload to the wheel server.
-
-    :param _: An unused context variable required by Invoke 0.13.0+.
+    Future possible changes: Upload to the wheel server.
     """
     build_instruction = _prompt('Build a wheel archive of {}? (Y/n)'.format(MODULE_DISPLAY_NAME)).lower()
 
