@@ -322,7 +322,7 @@ def _prompt_for_changelog(verbose):
         _standard_output('There are existing changelog details for this release. You can "edit" the changes, '
                          '"accept" them as-is, delete them and create a "new" changelog message, or "delete" '
                          'them and enter no changelog.')
-        instruction = _prompt('How would you like to proceed? (EDIT/new/accept/delete/exit)').lower()
+        instruction = _prompt('How would you like to proceed? (EDIT/new/accept/delete/exit):').lower()
 
         if instruction in (INSTRUCTION_NEW, INSTRUCTION_DELETE):
             built_up_changelog = []
@@ -333,7 +333,7 @@ def _prompt_for_changelog(verbose):
     else:
         _verbose_output(verbose, 'No existing lines of built-up changelog text were read.')
         instruction = _prompt(
-            'Would you like to enter changelog details for this release? (Y/n/exit)',
+            'Would you like to enter changelog details for this release? (Y/n/exit):',
         ).lower() or INSTRUCTION_YES
 
     if instruction == INSTRUCTION_EXIT:
@@ -342,7 +342,7 @@ def _prompt_for_changelog(verbose):
     if instruction == INSTRUCTION_YES:
         gather = _prompt(
             'Would you like to{also} gather commit messages from recent commits and add them to the '
-            'changelog? ({y_n}/exit)',
+            'changelog? ({y_n}/exit):',
             **({'also': ' also', 'y_n': 'y/N'} if built_up_changelog else {'also': '', 'y_n': 'Y/n'})
         ).lower() or (INSTRUCTION_NO if built_up_changelog else INSTRUCTION_YES)
 
@@ -461,7 +461,7 @@ def _tag_branch(release_version, verbose, overwrite=False):
     if gpg:
         sign_with_key = _prompt(
             'GPG is installed on your system. Would you like to sign the release tag with your GitHub committer email '
-            'GPG key? (y/N/[alternative key ID])',
+            'GPG key? (y/N/[alternative key ID]):',
         ).lower() or INSTRUCTION_NO
 
         if sign_with_key == INSTRUCTION_YES:
@@ -558,7 +558,7 @@ def _commit_release_changes(release_version, changelog_lines, verbose):
 def _push_release_changes(release_version, branch_name, verbose):
     try:
         push = _prompt(
-            'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback)',
+            'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):',
             branch_name,
         ).lower()
     except KeyboardInterrupt:
@@ -992,7 +992,7 @@ def version(_):
     _standard_output('Invoke {}', invoke_version)
 
     from invoke_release.version import __version__
-    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
+    _standard_output('Invoke Release {}', __version__)
 
     _ensure_files_exist(False)
 
@@ -1017,7 +1017,7 @@ def branch(_, verbose=False, no_stash=False):
     _ensure_configured('release')
 
     from invoke_release.version import __version__
-    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
+    _standard_output('Invoke Release {}', __version__)
 
     _setup_task(no_stash, verbose)
     try:
@@ -1085,7 +1085,7 @@ def release(_, verbose=False, no_stash=False):
     _ensure_configured('release')
 
     from invoke_release.version import __version__
-    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
+    _standard_output('Invoke Release {}', __version__)
 
     __version__ = _import_version_or_exit()
 
@@ -1105,7 +1105,7 @@ def release(_, verbose=False, no_stash=False):
         instruction = _prompt(
             'You are currently on branch "{branch}" instead of "master." Are you sure you want to continue releasing '
             'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
-            'released from the parent branch. (y/N)',
+            'released from the parent branch. (y/N):',
             branch=branch_name,
         ).lower()
 
@@ -1168,7 +1168,7 @@ def release(_, verbose=False, no_stash=False):
 
         cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
 
-        instruction = _prompt('The release has not yet been committed. Are you ready to commit the it? (Y/n)').lower()
+        instruction = _prompt('The release has not yet been committed. Are you ready to commit the it? (Y/n):').lower()
         if instruction and instruction != INSTRUCTION_YES:
             raise ReleaseExit()
 
@@ -1219,7 +1219,7 @@ def rollback_release(_, verbose=False, no_stash=False):
     _ensure_configured('rollback_release')
 
     from invoke_release.version import __version__
-    _standard_output('Eventbrite Command Line Release Tools ("Invoke Release") {}', __version__)
+    _standard_output('Invoke Release {}', __version__)
 
     __version__ = _import_version_or_exit()
 
@@ -1227,7 +1227,7 @@ def rollback_release(_, verbose=False, no_stash=False):
     if branch_name != BRANCH_MASTER:
         instruction = _prompt(
             'You are currently on branch "{branch}" instead of "master." Rolling back on a branch other than master '
-            'can be dangerous.\nAre you sure you want to continue rolling back on "{branch}?" (y/N)',
+            'can be dangerous.\nAre you sure you want to continue rolling back on "{branch}?" (y/N):',
             branch=branch_name,
         ).lower()
 
@@ -1257,23 +1257,27 @@ def rollback_release(_, verbose=False, no_stash=False):
             )
 
         _standard_output('Release tag {} will be deleted locally and remotely (if applicable).', __version__)
-        delete = _prompt('Do you want to proceed with deleting this tag? (y/N)').lower()
+        delete = _prompt('Do you want to proceed with deleting this tag? (y/N):').lower()
         if delete == INSTRUCTION_YES:
-            tag_on_remote = _is_tag_on_remote(__version__, verbose)
-            _delete_local_tag(__version__, verbose)
-            if tag_on_remote:
+            if _does_tag_exist_locally(__version__, verbose):
+                _delete_local_tag(__version__, verbose)
+
+            if _is_tag_on_remote(__version__, verbose):
                 _delete_remote_tag(__version__, verbose)
 
             _standard_output('The release tag has been deleted from local and remote (if applicable).')
-            revert = _prompt('Do you also want to revert the commit? (y/N)').lower()
+
+            if is_on_remote:
+                _standard_output('The release commit is present on the remote origin.')
+                prompt = 'Do you want to revert the commit and immediately push it to the remote origin? (y/N):'
+            else:
+                _standard_output('The release commit is only present locally, not on the remote origin.')
+                prompt = 'Are you ready to delete the commit like it never happened? (y/N):'
+
+            revert = _prompt(prompt).lower()
             if revert == INSTRUCTION_YES:
                 if is_on_remote:
-                    _standard_output('The commit is present on the remote origin.')
-                    revert = _prompt(
-                        'Are you sure you want to revert the commit and immediately push to remote origin? (y/N)',
-                    ).lower()
-                    if revert == INSTRUCTION_YES:
-                        _revert_remote_commit(__version__, commit_hash, branch_name, verbose)
+                    _revert_remote_commit(__version__, commit_hash, branch_name, verbose)
                 else:
                     _delete_last_commit(verbose)
             else:
@@ -1309,7 +1313,7 @@ def wheel(_):
 
     Future possible changes: Upload to the wheel server.
     """
-    build_instruction = _prompt('Build a wheel archive of {}? (Y/n)'.format(MODULE_DISPLAY_NAME)).lower()
+    build_instruction = _prompt('Build a wheel archive of {}? (Y/n):'.format(MODULE_DISPLAY_NAME)).lower()
 
     if build_instruction == INSTRUCTION_NO:
         _standard_output('Aborting!')

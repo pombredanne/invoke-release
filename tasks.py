@@ -12,7 +12,7 @@ from invoke_release.plugins import (  # noqa: E402
 
 configure_release_parameters(  # noqa: F405
     module_name='invoke_release',
-    display_name='Eventbrite Command Line Release Tools ("Invoke Release")',
+    display_name='Invoke Release',
     python_directory='python',
     plugins=[
         PatternReplaceVersionInFilesPlugin('README.md')
