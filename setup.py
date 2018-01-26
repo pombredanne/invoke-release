@@ -20,7 +20,8 @@ install_requires = [
     'wheel',
 ]
 
-test_requirements = [
+tests_require = [
+    'pytest'
 ]
 
 if sys.argv[-1] == 'tag':
@@ -50,12 +51,15 @@ instructions at https://github.com/eventbrite/invoke-release, and you can then p
     url='https://github.com/eventbrite/invoke-release',
     packages=packages,
     package_dir={
-        '': 'python',
+        str(''): str('python'),  # In Python 2, these can't be unicode; in Python 3, they must be
     },
     install_requires=install_requires,
     # Invalid classifier prevents accidental upload to PyPI
-    test_suite='tests',
-    tests_require=test_requirements,
+    setup_requires=['pytest-runner'],
+    tests_require=tests_require,
+    extras_require={
+        'testing': tests_require,
+    },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
