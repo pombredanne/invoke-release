@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.0.2 (2018-01-26)
+------------------
+- Improve how Travis deploys new releases
+- Fix setup details so that it installs correctly and displays correctly on PyPi
+- Ignore pull requests merged in changelogs
+
 4.0.1 (2018-01-26)
 ------------------
 - Add entire changelog to annotated release tag message
