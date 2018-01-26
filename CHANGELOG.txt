@@ -1,6 +1,10 @@
 Changelog
 =========
 
+4.0.3 (2018-01-26)
+------------------
+- Fix another problem in setup
+
 4.0.2 (2018-01-26)
 ------------------
 - Improve how Travis deploys new releases
