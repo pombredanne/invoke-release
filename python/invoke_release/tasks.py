@@ -430,7 +430,7 @@ def _write_to_changelog_file(release_version, changelog_header, changelog_messag
     _verbose_output(verbose, 'Finished writing to changelog.')
 
 
-def _tag_branch(release_version, verbose, overwrite=False):
+def _tag_branch(release_version, changelog_lines, verbose, overwrite=False):
     _verbose_output(verbose, 'Tagging branch...')
 
     try:
@@ -453,6 +453,11 @@ def _tag_branch(release_version, verbose, overwrite=False):
         tty = ''
 
     release_message = RELEASE_MESSAGE_TEMPLATE.format(release_version)
+    if changelog_lines:
+        release_message += '\n\nChangelog Details:'
+        for line in changelog_lines:
+            release_message += '\n' + line.strip()
+
     cmd = ['git', 'tag', '-a', release_version, '-m', release_message]
     if overwrite:
         cmd.append('-f')
@@ -1183,7 +1188,7 @@ def release(_, verbose=False, no_stash=False):
 
         _pre_push(__version__, release_version)
 
-        _tag_branch(release_version, verbose)
+        _tag_branch(release_version, cl_message, verbose)
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
 
         _post_release(__version__, release_version, pushed_or_rolled_back)
