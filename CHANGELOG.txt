@@ -1,6 +1,11 @@
 Changelog
 =========
 
+4.0.1 (2018-01-26)
+------------------
+- Add entire changelog to annotated release tag message
+- Fix problems that caused build to fail
+
 4.0.0 (2018-01-26)
 ------------------
 - Complete Python 3 compatibility, ensuring end-to-end unicode
