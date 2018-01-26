@@ -42,7 +42,7 @@ releases like so:
     $ invoke branch
     $ invoke rollback-release''',
     url='https://github.com/eventbrite/invoke-release',
-    packages=find_packages(where='python', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),
+    packages=map(str, find_packages(where='python', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests'])),
     package_dir={
         str(''): str('python'),  # In Python 2, these can't be unicode; in Python 3, they must be
     },
