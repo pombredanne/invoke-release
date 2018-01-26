@@ -1,6 +1,19 @@
 Changelog
 =========
 
+4.0.0 (2018-01-26)
+------------------
+- Complete Python 3 compatibility, ensuring end-to-end unicode
+- Add ability to sign release tags for increased security
+- Relax requirements for versions to permit alphanumeric qualifier suffixes after the patch version
+- Relax requirements for version branches, rigidify requirements for version numbers released from version branches
+- Support `CHANGELOG.md` and `CHANGELOG.rst` in addition to `CHANGELOG.txt`
+- Improve wording of some prompts and messages to reduce confusion
+- Prepare for open sourcing so that it can be used with our open source projects, like Conformity and PySOA
+- Ensure we use colons consistently at the end of all prompts
+- Ensure we can roll back partial releases that failed before completing
+- Add Travis build and Travis secret for automatically deploying new releases to PyPi
+
 3.0.0 (2017-03-17)
 ------------------
 - Made Python 3 compatible
