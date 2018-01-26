@@ -28,7 +28,7 @@ VERSION_VARIABLE_TEMPLATE = (
     "__version__ = '-'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
     "(__version_info__[3:] or [None])[0]]))"
 )
-RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}.'
+RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}'
 
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
@@ -247,7 +247,7 @@ def _gather_commit_messages(verbose):
         'log',
         '-1',
         '--format=%H',
-        '--grep={}'.format(RELEASE_MESSAGE_TEMPLATE.replace(' {}.', '').replace('"', '\\"'))
+        '--grep={}'.format(RELEASE_MESSAGE_TEMPLATE.replace(' {}', '').replace('"', '\\"'))
     ]
     _verbose_output(verbose, 'Running command: "{}"', '" "'.join(command))
     commit_hash = subprocess.check_output(command, stderr=sys.stderr).decode('utf8').strip()
@@ -267,7 +267,8 @@ def _gather_commit_messages(verbose):
 
     messages = []
     for message in output.splitlines():
-        messages.append('- {}'.format(message))
+        if not message.strip().startswith('Merge pull request #'):
+            messages.append('- {}'.format(message))
 
     _verbose_output(
         verbose,
@@ -941,7 +942,7 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 
     MODULE_NAME = module_name
     MODULE_DISPLAY_NAME = display_name
-    RELEASE_MESSAGE_TEMPLATE = 'Released {} version {{}}.'.format(MODULE_DISPLAY_NAME)
+    RELEASE_MESSAGE_TEMPLATE = 'Released {} version {{}}'.format(MODULE_DISPLAY_NAME)
 
     ROOT_DIRECTORY = os.path.normpath(_get_root_directory())
 
@@ -1221,7 +1222,7 @@ def rollback_release(_, verbose=False, no_stash=False):
     yet been pushed to remote, but extreme caution should be exercised when invoking this after the release has
     been pushed to remote.
     """
-    _ensure_configured('rollback_release')
+    _ensure_configured('rollback-release')
 
     from invoke_release.version import __version__
     _standard_output('Invoke Release {}', __version__)
@@ -1249,7 +1250,7 @@ def rollback_release(_, verbose=False, no_stash=False):
     try:
         commit_hash = _get_last_commit_hash(verbose)
         message = _get_commit_subject(commit_hash, verbose)
-        if message != RELEASE_MESSAGE_TEMPLATE.format(__version__):
+        if message.rstrip('.') != RELEASE_MESSAGE_TEMPLATE.format(__version__):
             raise ReleaseFailure('Cannot roll back because last commit is not the release commit.')
 
         on_remote = _get_remote_branches_with_commit(commit_hash, verbose)

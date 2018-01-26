@@ -110,7 +110,7 @@ class AbstractInvokeReleasePlugin(object):
 
     def pre_rollback(self, root_directory, current_version):
         """
-        Invokes a pre-rollback hook to execute tasks before a call to `rollback_release` proceeds. Can be used to run
+        Invokes a pre-rollback hook to execute tasks before a call to `rollback-release` proceeds. Can be used to run
         pre-rollback checks and cancel the rollback if some condition is met or not met.
 
         :param root_directory: The root project directory
@@ -123,7 +123,7 @@ class AbstractInvokeReleasePlugin(object):
 
     def post_rollback(self, root_directory, current_version, rollback_to_version):
         """
-        Invokes a post-rollback hook to execute tasks after a call to `rollback_release` has succeeded. Will not be
+        Invokes a post-rollback hook to execute tasks after a call to `rollback-release` has succeeded. Will not be
         called if the task fails or is canceled for any reason.
 
         :param root_directory: The root project directory

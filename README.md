@@ -105,10 +105,10 @@ a minor version branch (for releasing patch versions), and then create the branc
 land your commits and call `invoke release` from that branch to release a new minor or patch version, as the case may
 be.
 
-One of the available commands is `rollback_release`:
+One of the available commands is `rollback-release`:
 
 ```
-$ invoke rollback_release
+$ invoke rollback-release
 ...
 ```
 
