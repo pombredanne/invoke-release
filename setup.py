@@ -1,6 +1,5 @@
 from __future__ import absolute_import, unicode_literals
 
-import os
 from setuptools import (
     find_packages,
     setup,
@@ -11,7 +10,6 @@ sys.path.insert(0, 'python')
 
 from invoke_release.version import __version__  # noqa: E402
 
-packages = [x for x in find_packages('python') if '.tests' not in x]
 
 # No dependencies to keep the library lightweight
 install_requires = [
@@ -24,20 +22,17 @@ tests_require = [
     'pytest'
 ]
 
-if sys.argv[-1] == 'tag':
-    os.system("git tag -a {version} -m 'version {version}'".format(version=__version__))
-    os.system('git push --tags')
-    sys.exit()
-
 
 setup(
-    name='invoke_release',
+    name='invoke-release',
     version=__version__,
-    description='''Reusable Invoke-based command-line release tasks for libraries and services
-
-This provides some stock tasks built atop Invoke (http://www.pyinvoke.org/) to make releasing your libraries and
-services, using Git tags, easier and more streamlined. Simply configure your project with a `task.py` file per the
-instructions at https://github.com/eventbrite/invoke-release, and you can then perform robust releases like so:
+    author='Eventbrite, Inc.',
+    author_email='opensource@eventbrite.com',
+    description='Reusable Invoke-based command-line release tasks for libraries and services',
+    long_description='''This provides some stock tasks built atop Invoke (http://www.pyinvoke.org/) to make releasing
+your libraries and services, using Git tags, easier and more streamlined. Simply configure your project with a
+`task.py` file per the instructions at https://github.com/eventbrite/invoke-release, and you can then perform robust
+releases like so:
 
 .. code-block:: bash
 
@@ -46,10 +41,8 @@ instructions at https://github.com/eventbrite/invoke-release, and you can then p
     $ invoke wheel
     $ invoke branch
     $ invoke rollback-release''',
-    author='Eventbrite, Inc.',
-    author_email='opensource@eventbrite.com',
     url='https://github.com/eventbrite/invoke-release',
-    packages=packages,
+    packages=find_packages(where='python', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),
     package_dir={
         str(''): str('python'),  # In Python 2, these can't be unicode; in Python 3, they must be
     },
