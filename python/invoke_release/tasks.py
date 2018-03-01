@@ -398,9 +398,22 @@ def _prompt_for_changelog(verbose):
             _verbose_output(verbose, 'User has closed editor')
 
             with codecs.open(tf.name, 'rb', encoding='utf8') as read:
+                first_line = True
+                last_line_blank = False
                 for line in read:
-                    if line and line.strip() and not line.startswith(CHANGELOG_COMMENT_FIRST_CHAR):
-                        changelog_message.append(line)
+                    line_blank = not line.strip()
+                    if (first_line or last_line_blank) and line_blank:
+                        # Suppress leading blank lines and compress multiple blank lines into one
+                        continue
+                    if line.startswith(CHANGELOG_COMMENT_FIRST_CHAR):
+                        # Suppress comments
+                        continue
+                    changelog_message.append(line)
+                    last_line_blank = line_blank
+                    first_line = False
+                if last_line_blank:
+                    # Suppress trailing blank lines
+                    changelog_message.pop()
             _verbose_output(verbose, 'Changelog message read from temporary file:\n{}', changelog_message)
 
     return changelog_header, changelog_message, changelog_footer
