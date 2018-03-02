@@ -1,6 +1,10 @@
 Changelog
 =========
 
+4.0.4 (2018-03-02)
+------------------
+- Preserve changelog blank lines smartly
+
 4.0.3 (2018-01-26)
 ------------------
 - Fix another problem in setup
