@@ -1,6 +1,10 @@
 Changelog
 =========
 
+4.0.5 (2018-11-07)
+------------------
+- [PATCH] Peg wheel to 0.31.1 due to breaking change with archive module (#6)
+
 4.0.4 (2018-03-02)
 ------------------
 - Preserve changelog blank lines smartly
