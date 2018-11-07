@@ -15,7 +15,7 @@ from invoke_release.version import __version__  # noqa: E402
 install_requires = [
     'invoke~=0.22.0',
     'six~=1.11.0',
-    'wheel',
+    'wheel~=0.31.1',
 ]
 
 tests_require = [

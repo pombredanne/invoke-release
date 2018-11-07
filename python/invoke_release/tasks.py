@@ -17,7 +17,7 @@ from wheel import archive
 
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
-RE_FILE_EXTENSION = re.compile('\.\w+$')
+RE_FILE_EXTENSION = re.compile(r'\.\w+$')
 RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.-]*[a-zA-Z\d]+)?$')
 RE_VERSION_BRANCH_MAJOR = re.compile(r'^\d+\.x\.x$')
 RE_VERSION_BRANCH_MINOR = re.compile(r'^\d+\.\d+\.x$')
@@ -1115,7 +1115,7 @@ def release(_, verbose=False, no_stash=False):
         if not RE_VERSION_BRANCH_MAJOR.match(branch_name) and not RE_VERSION_BRANCH_MINOR.match(branch_name):
             _error_output(
                 'You are currently on branch "{}" instead of "master." You should only release from master or version '
-                'branches, and this does not appear to be a version branch (must match \d+\.x\.x or \d+.\d+\.x). '
+                'branches, and this does not appear to be a version branch (must match \\d+\\.x\\.x or \\d+.\\d+\\.x). '
                 '\nCanceling release!',
                 branch_name,
             )
