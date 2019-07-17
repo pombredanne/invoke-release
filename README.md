@@ -182,6 +182,10 @@ configure_release_parameters(  # noqa: F405
 )
 ```
 
+If you would like `invoke-release` to push a release branch instead of pushing a commit to `master`, 
+add `use_pull_request=True` to `tasks.py`.
+If you do not want to push a tag to your remote repository, add `use_tag=False` to `tasks.py`.
+
 This assumes that the default Python source directory in your project is the same as the `module_name`, relative to the
 project root directory. This is true for many Python projects, but not all of them. For some projects, you may need to
 use the optional `python_directory` function argument to customize this. Using the above naming, if your module

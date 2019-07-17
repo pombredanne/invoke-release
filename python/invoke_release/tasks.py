@@ -32,6 +32,8 @@ RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}'
 
 MODULE_NAME = 'unknown'
 MODULE_DISPLAY_NAME = '[unknown]'
+USE_PULL_REQUEST = False
+USE_TAG = True
 
 RELEASE_PLUGINS = []
 
@@ -576,10 +578,11 @@ def _commit_release_changes(release_version, changelog_lines, verbose):
 
 def _push_release_changes(release_version, branch_name, verbose):
     try:
-        push = _prompt(
-            'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):',
-            branch_name,
-        ).lower()
+        if USE_TAG:
+            message = 'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):'
+        else:
+            message = 'Push release changes to remote origin (branch "{}")? (y/N/rollback):'
+        push = _prompt(message, branch_name).lower()
     except KeyboardInterrupt:
         push = INSTRUCTION_ROLLBACK
 
@@ -591,12 +594,13 @@ def _push_release_changes(release_version, branch_name, verbose):
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        # push the release tag
-        subprocess.check_call(
-            ['git', 'push', 'origin', release_version],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        if USE_TAG:
+            # push the release tag
+            subprocess.check_call(
+                ['git', 'push', 'origin', release_version],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
 
         _verbose_output(verbose, 'Finished pushing changes to remote origin.')
 
@@ -604,23 +608,39 @@ def _push_release_changes(release_version, branch_name, verbose):
     elif push == INSTRUCTION_ROLLBACK:
         _standard_output('Rolling back local release commit and tag...')
 
-        _delete_last_commit(verbose)
-        _delete_local_tag(release_version, verbose)
+        if USE_PULL_REQUEST:
+            _checkout_branch(verbose, BRANCH_MASTER)
+            _delete_branch(verbose, branch_name)
+        else:
+            _delete_last_commit(verbose)
+
+        if USE_TAG:
+            _delete_local_tag(release_version, verbose)
 
         _verbose_output(verbose, 'Finished rolling back local release commit.')
 
         return PUSH_RESULT_ROLLBACK
     else:
         _standard_output('Not pushing changes to remote origin!')
-        _print_output(
-            COLOR_RED_BOLD,
-            'Make sure you remember to explicitly push {branch} and the tag (or revert your local changes if you are '
-            'trying to cancel)! You can push with the following commands:\n'
-            '    git push origin {branch}:{branch}\n'
-            '    git push origin "{version}"\n',
-            branch=branch_name,
-            version=release_version,
-        )
+        if USE_TAG:
+            _print_output(
+                COLOR_RED_BOLD,
+                'Make sure you remember to explicitly push {branch} and the tag '
+                '(or revert your local changes if you are trying to cancel)! '
+                'You can push with the following commands:\n'
+                '    git push origin {branch}:{branch}\n'
+                '    git push origin "{tag}"\n',
+                branch=branch_name,
+                tag=release_version,
+            )
+        else:
+            _print_output(
+                COLOR_RED_BOLD,
+                'Make sure you remember to explicitly push {branch} (or revert your local changes if you are '
+                'trying to cancel)! You can push with the following command:\n'
+                '    git push origin {branch}:{branch}\n',
+                branch=branch_name,
+            )
 
         return PUSH_RESULT_NO_ACTION
 
@@ -662,6 +682,42 @@ def _get_branch_name(verbose):
     _verbose_output(verbose, 'Current Git branch name is {}.', branch_name)
 
     return branch_name
+
+
+def _create_branch(verbose, branch_name):
+    _verbose_output(verbose, 'Creating branch {branch}...', branch=branch_name)
+
+    subprocess.check_call(
+        ['git', 'checkout', '-b', branch_name],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+
+
+def _checkout_branch(verbose, branch_name):
+    _verbose_output(verbose, 'Checking out branch {branch}...', branch=branch_name)
+
+    subprocess.check_call(
+        ['git', 'checkout', branch_name],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done checking out branch {}.', branch_name)
+
+
+def _delete_branch(verbose, branch_name):
+    _verbose_output(verbose, 'Deleting branch {branch}...', branch=branch_name)
+
+    subprocess.check_call(
+        ['git', 'branch', '-D', branch_name],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done deleting branch {}.', branch_name)
 
 
 def _create_branch_from_tag(verbose, tag_name, branch_name):
@@ -941,9 +997,11 @@ def _post_rollback(current_version, rollback_to_version):
         plugin.post_rollback(ROOT_DIRECTORY, current_version, rollback_to_version)
 
 
-def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None):
+def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None,
+                                 use_pull_request=False, use_tag=True):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
     global ROOT_DIRECTORY, RELEASE_PLUGINS, PARAMETERS_CONFIGURED, VERSION_FILE_IS_TXT
+    global USE_PULL_REQUEST, USE_TAG
 
     if PARAMETERS_CONFIGURED:
         _error_output_exit('Cannot call configure_release_parameters more than once.')
@@ -993,6 +1051,9 @@ def configure_release_parameters(module_name, display_name, python_directory=Non
 
     if getattr(plugins, '__iter__', None):
         RELEASE_PLUGINS = plugins
+
+    USE_PULL_REQUEST = use_pull_request
+    USE_TAG = use_tag
 
     PARAMETERS_CONFIGURED = True
 
@@ -1187,7 +1248,7 @@ def release(_, verbose=False, no_stash=False):
 
         cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
 
-        instruction = _prompt('The release has not yet been committed. Are you ready to commit the it? (Y/n):').lower()
+        instruction = _prompt('The release has not yet been committed. Are you ready to commit it? (Y/n):').lower()
         if instruction and instruction != INSTRUCTION_YES:
             raise ReleaseExit()
 
@@ -1198,16 +1259,28 @@ def release(_, verbose=False, no_stash=False):
 
         _pre_commit(__version__, release_version)
 
+        if USE_PULL_REQUEST:
+            current_branch_name = _get_branch_name(verbose)
+            branch_name = 'invoke-release-{}-{}'.format(current_branch_name, release_version)
+            _create_branch(verbose, branch_name)
         _commit_release_changes(release_version, cl_message, verbose)
 
         _pre_push(__version__, release_version)
 
-        _tag_branch(release_version, cl_message, verbose)
+        if USE_TAG:
+            _tag_branch(release_version, cl_message, verbose)
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
+
+        if USE_PULL_REQUEST:
+            _checkout_branch(verbose, BRANCH_MASTER)
 
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
-        _standard_output('Release process is complete.')
+        if USE_PULL_REQUEST:
+            _standard_output("You're almost done! The release process will be complete when you create "
+                             "a pull request and it is merged.")
+        else:
+            _standard_output('Release process is complete.')
     except ReleaseFailure as e:
         _error_output(e.args[0])
     except subprocess.CalledProcessError as e:
