@@ -1,6 +1,15 @@
 Changelog
 =========
 
+4.1.0 (2019-07-18)
+------------------
+- [MINOR] Add support for pushing to a branch and not tag
+  Some projects don't support pushing directly to master without going through a pull request. This new flow, if configured (the existing flow is unchanged), will:
+  - Create a branch named `invoke-release-<base branch>-<new_version>`
+  - Push the branch to origin
+  - Not create a tag
+  A future change will add support for automatically creating the pull request. Users of this flow will typically create some kind of build bot that will verify the pull request, automatically merge it, and create and push a tag.
+
 4.0.5 (2018-11-07)
 ------------------
 - [PATCH] Peg wheel to 0.31.1 due to breaking change with archive module (#6)
