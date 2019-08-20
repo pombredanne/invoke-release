@@ -696,6 +696,22 @@ def _create_branch(verbose, branch_name):
     _verbose_output(verbose, 'Done creating branch {}.', branch_name)
 
 
+def _create_local_tracking_branch(verbose, branch_name):
+    _verbose_output(
+        verbose,
+        'Creating local branch {branch} set up to track remote branch {branch} from \'origin\'...',
+        branch=branch_name
+    )
+
+    subprocess.check_call(
+        ['git', 'checkout', '--track', 'origin/{}'.format(branch_name)],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+    _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+
+
 def _checkout_branch(verbose, branch_name):
     _verbose_output(verbose, 'Checking out branch {branch}...', branch=branch_name)
 
@@ -718,6 +734,26 @@ def _delete_branch(verbose, branch_name):
     )
 
     _verbose_output(verbose, 'Done deleting branch {}.', branch_name)
+
+
+def _is_branch_on_remote(verbose, branch_name):
+    _verbose_output(verbose, 'Checking if branch {} exists on remote...', branch_name)
+
+    result = subprocess.check_output(
+        ['git', 'ls-remote', '--heads', 'origin', branch_name],
+        stderr=sys.stderr,
+    ).decode('utf8').strip()
+
+    on_remote = branch_name in result
+
+    _verbose_output(
+        verbose,
+        'Result of on-remote check for branch {branch_name} is {result}.',
+        branch_name=branch_name,
+        result=on_remote,
+    )
+
+    return on_remote
 
 
 def _create_branch_from_tag(verbose, tag_name, branch_name):
@@ -1128,14 +1164,31 @@ def branch(_, verbose=False, no_stash=False):
             raise ReleaseExit()
 
         new_branch = major_branch if proceed_instruction == INSTRUCTION_MAJOR else minor_branch
-        _create_branch_from_tag(verbose, branch_version, new_branch)
 
-        push_instruction = _prompt(
-            'Branch {} created. Would you like to go ahead and push it to remote? (y/N):',
-            new_branch,
-        ).lower()
-        if push_instruction and push_instruction == INSTRUCTION_YES:
-            _push_branch(verbose, new_branch)
+        if USE_PULL_REQUEST:
+            if _is_branch_on_remote(verbose, new_branch):
+                _standard_output(
+                    'Branch {branch} exists on remote. Checking out local tracking branch.',
+                    branch=new_branch,
+                )
+                _create_local_tracking_branch(verbose, new_branch)
+            else:
+                _standard_output(
+                    'Branch {branch} does not exist on remote.\n'
+                    'Creating branch, and pushing to remote.',
+                    branch=new_branch,
+                )
+                _create_branch_from_tag(verbose, branch_version, new_branch)
+                _push_branch(verbose, new_branch)
+        else:
+            _create_branch_from_tag(verbose, branch_version, new_branch)
+
+            push_instruction = _prompt(
+                'Branch {} created. Would you like to go ahead and push it to remote? (y/N):',
+                new_branch,
+            ).lower()
+            if push_instruction and push_instruction == INSTRUCTION_YES:
+                _push_branch(verbose, new_branch)
 
         _standard_output('Branch process is complete.')
     except ReleaseFailure as e:
