@@ -697,19 +697,31 @@ def _create_branch(verbose, branch_name):
 
 
 def _create_local_tracking_branch(verbose, branch_name):
+    """Create a local tracking branch of origin/<branch_name>.
+
+    Returns True if successful, False otherwise.
+
+    """
     _verbose_output(
         verbose,
         'Creating local branch {branch} set up to track remote branch {branch} from \'origin\'...',
         branch=branch_name
     )
 
-    subprocess.check_call(
-        ['git', 'checkout', '--track', 'origin/{}'.format(branch_name)],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
+    success = True
 
-    _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+    try:
+        subprocess.check_call(
+            ['git', 'checkout', '--track', 'origin/{}'.format(branch_name)],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+    except subprocess.CalledProcessError:
+        _verbose_output(verbose, 'Creating branch {} failed.', branch_name)
+        success = False
+
+    return success
 
 
 def _checkout_branch(verbose, branch_name):
@@ -1168,10 +1180,16 @@ def branch(_, verbose=False, no_stash=False):
         if USE_PULL_REQUEST:
             if _is_branch_on_remote(verbose, new_branch):
                 _standard_output(
-                    'Branch {branch} exists on remote. Checking out local tracking branch.',
+                    'Branch {branch} exists on remote. Creating local tracking branch.',
                     branch=new_branch,
                 )
-                _create_local_tracking_branch(verbose, new_branch)
+                created = _create_local_tracking_branch(verbose, new_branch)
+                if not created:
+                    raise ReleaseFailure(
+                        'Could not create local tracking branch {branch}.\n'
+                        'Does a local branch named {branch} already exists?\n'
+                        'Delete or rename your local branch {branch} and try again.'.format(branch=new_branch),
+                    )
             else:
                 _standard_output(
                     'Branch {branch} does not exist on remote.\n'
