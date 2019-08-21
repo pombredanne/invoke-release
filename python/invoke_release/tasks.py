@@ -1198,6 +1198,21 @@ def branch(_, verbose=False, no_stash=False):
                 )
                 _create_branch_from_tag(verbose, branch_version, new_branch)
                 _push_branch(verbose, new_branch)
+
+            cherry_pick_branch_suffix = _prompt(
+                'Now we will create the branch where you will apply your fixes. We\n'
+                'need a name to uniquely idenfity your feature branch. I suggest using\n'
+                'the JIRA ticket id, e.g. EB-120106, of the issue you are working on:'
+            )
+            if not cherry_pick_branch_suffix:
+                raise ReleaseFailure('You must enter a name to identify your feature branch.')
+            _create_branch(
+                verbose,
+                'cherry-pick-{hotfix_branch_name}-{suffix}'.format(
+                    hotfix_branch_name=new_branch,
+                    suffix=cherry_pick_branch_suffix,
+                )
+            )
         else:
             _create_branch_from_tag(verbose, branch_version, new_branch)
 
