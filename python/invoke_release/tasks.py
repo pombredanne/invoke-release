@@ -696,6 +696,34 @@ def _create_branch(verbose, branch_name):
     _verbose_output(verbose, 'Done creating branch {}.', branch_name)
 
 
+def _create_local_tracking_branch(verbose, branch_name):
+    """Create a local tracking branch of origin/<branch_name>.
+
+    Returns True if successful, False otherwise.
+
+    """
+    _verbose_output(
+        verbose,
+        'Creating local branch {branch} set up to track remote branch {branch} from \'origin\'...',
+        branch=branch_name
+    )
+
+    success = True
+
+    try:
+        subprocess.check_call(
+            ['git', 'checkout', '--track', 'origin/{}'.format(branch_name)],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        _verbose_output(verbose, 'Done creating branch {}.', branch_name)
+    except subprocess.CalledProcessError:
+        _verbose_output(verbose, 'Creating branch {} failed.', branch_name)
+        success = False
+
+    return success
+
+
 def _checkout_branch(verbose, branch_name):
     _verbose_output(verbose, 'Checking out branch {branch}...', branch=branch_name)
 
@@ -718,6 +746,26 @@ def _delete_branch(verbose, branch_name):
     )
 
     _verbose_output(verbose, 'Done deleting branch {}.', branch_name)
+
+
+def _is_branch_on_remote(verbose, branch_name):
+    _verbose_output(verbose, 'Checking if branch {} exists on remote...', branch_name)
+
+    result = subprocess.check_output(
+        ['git', 'ls-remote', '--heads', 'origin', branch_name],
+        stderr=sys.stderr,
+    ).decode('utf8').strip()
+
+    on_remote = branch_name in result
+
+    _verbose_output(
+        verbose,
+        'Result of on-remote check for branch {branch_name} is {result}.',
+        branch_name=branch_name,
+        result=on_remote,
+    )
+
+    return on_remote
 
 
 def _create_branch_from_tag(verbose, tag_name, branch_name):
@@ -1128,14 +1176,52 @@ def branch(_, verbose=False, no_stash=False):
             raise ReleaseExit()
 
         new_branch = major_branch if proceed_instruction == INSTRUCTION_MAJOR else minor_branch
-        _create_branch_from_tag(verbose, branch_version, new_branch)
 
-        push_instruction = _prompt(
-            'Branch {} created. Would you like to go ahead and push it to remote? (y/N):',
-            new_branch,
-        ).lower()
-        if push_instruction and push_instruction == INSTRUCTION_YES:
-            _push_branch(verbose, new_branch)
+        if USE_PULL_REQUEST:
+            if _is_branch_on_remote(verbose, new_branch):
+                _standard_output(
+                    'Branch {branch} exists on remote. Creating local tracking branch.',
+                    branch=new_branch,
+                )
+                created = _create_local_tracking_branch(verbose, new_branch)
+                if not created:
+                    raise ReleaseFailure(
+                        'Could not create local tracking branch {branch}.\n'
+                        'Does a local branch named {branch} already exists?\n'
+                        'Delete or rename your local branch {branch} and try again.'.format(branch=new_branch),
+                    )
+            else:
+                _standard_output(
+                    'Branch {branch} does not exist on remote.\n'
+                    'Creating branch, and pushing to remote.',
+                    branch=new_branch,
+                )
+                _create_branch_from_tag(verbose, branch_version, new_branch)
+                _push_branch(verbose, new_branch)
+
+            cherry_pick_branch_suffix = _prompt(
+                'Now we will create the branch where you will apply your fixes. We\n'
+                'need a name to uniquely idenfity your feature branch. I suggest using\n'
+                'the JIRA ticket id, e.g. EB-120106, of the issue you are working on:'
+            )
+            if not cherry_pick_branch_suffix:
+                raise ReleaseFailure('You must enter a name to identify your feature branch.')
+            _create_branch(
+                verbose,
+                'cherry-pick-{hotfix_branch_name}-{suffix}'.format(
+                    hotfix_branch_name=new_branch,
+                    suffix=cherry_pick_branch_suffix,
+                )
+            )
+        else:
+            _create_branch_from_tag(verbose, branch_version, new_branch)
+
+            push_instruction = _prompt(
+                'Branch {} created. Would you like to go ahead and push it to remote? (y/N):',
+                new_branch,
+            ).lower()
+            if push_instruction and push_instruction == INSTRUCTION_YES:
+                _push_branch(verbose, new_branch)
 
         _standard_output('Branch process is complete.')
     except ReleaseFailure as e:
