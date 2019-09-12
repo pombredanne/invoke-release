@@ -1,6 +1,13 @@
 Changelog
 =========
 
+4.2.0 (2019-09-12)
+------------------
+- [MINOR] Automate creation of branch for cherry-picks/fixes.
+- [PATCH] Exit with error message if creating a local tracking branch fails.
+- [MINOR] Add support to invoke branch for pull request workflow
+- [PATCH] Add Python 3.7 testing to CI
+
 4.1.0 (2019-07-18)
 ------------------
 - [MINOR] Add support for pushing to a branch and not tag

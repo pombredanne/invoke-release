@@ -64,7 +64,7 @@ properly and that the tools are installed on your machine:
 $ invoke version
 Python 2.7.11 (default, Jun 17 2016, 09:29:41)
 Invoke 0.22.0
-Invoke Release 4.1.0
+Invoke Release 4.2.0
 My Project 2.1.0
 Detected Git branch: master
 Detected version file: /path/to/my/project/module/version.py
@@ -79,7 +79,7 @@ directory and follow the on-screen instructions:
 
 ```
 $ invoke release
-Invoke Release 4.1.0
+Invoke Release 4.2.0
 Releasing My Project...
 Current version: 2.1.0
 Enter a new version (or "exit"): 2.2.0
@@ -95,7 +95,7 @@ then commit (or cherry-pick, as the case may be) your fix, and from which you ca
 
 ```
 $ invoke branch
-Invoke Release 4.1.0
+Invoke Release 4.2.0
 Enter a version tag from which to create a new branch (or "exit"): 2.0.0
 ...
 ```
@@ -221,7 +221,7 @@ and verify the output. Address any errors that you see.
 $ invoke version
 Python 2.7.11 (default, Jun 17 2016, 09:29:41)
 Invoke 0.22.0
-Invoke Release 4.1.0
+Invoke Release 4.2.0
 PySOA 0.26.1
 Detected Git branch: master
 Detected version file: /path/to/pysoa-project/pysoa/version.py
