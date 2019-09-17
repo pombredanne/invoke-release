@@ -1201,7 +1201,7 @@ def branch(_, verbose=False, no_stash=False):
 
             cherry_pick_branch_suffix = _prompt(
                 'Now we will create the branch where you will apply your fixes. We\n'
-                'need a name to uniquely idenfity your feature branch. I suggest using\n'
+                'need a name to uniquely identify your feature branch. I suggest using\n'
                 'the JIRA ticket id, e.g. EB-120106, of the issue you are working on:'
             )
             if not cherry_pick_branch_suffix:
