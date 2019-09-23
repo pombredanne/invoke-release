@@ -1358,7 +1358,7 @@ def release(_, verbose=False, no_stash=False):
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
 
         if USE_PULL_REQUEST:
-            _checkout_branch(verbose, BRANCH_MASTER)
+            _checkout_branch(verbose, current_branch_name)
 
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
