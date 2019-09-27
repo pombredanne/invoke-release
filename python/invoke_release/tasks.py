@@ -11,6 +11,7 @@ import shlex
 from distutils.version import LooseVersion
 
 from invoke import task
+from github import Github
 import six
 from six import moves
 from wheel import archive
@@ -1356,7 +1357,8 @@ def release(_, verbose=False, no_stash=False):
         if USE_TAG:
             _tag_branch(release_version, cl_message, verbose)
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
-
+            myCmd = 'hub pull-request --browse -m "release PR"'
+            os.system(myCmd)
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
 
