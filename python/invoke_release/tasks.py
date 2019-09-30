@@ -2,7 +2,9 @@ from __future__ import absolute_import, unicode_literals
 
 import codecs
 import datetime
+import json
 import os
+import requests
 import re
 import subprocess
 import sys
@@ -11,7 +13,6 @@ import shlex
 from distutils.version import LooseVersion
 
 from invoke import task
-from github import Github
 import six
 from six import moves
 from wheel import archive
@@ -1357,11 +1358,13 @@ def release(_, verbose=False, no_stash=False):
         if USE_TAG:
             _tag_branch(release_version, cl_message, verbose)
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
-            myCmd = 'hub pull-request --browse -m "release PR"'
-            os.system(myCmd)
+
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
-
+            try:  
+                os.environ["GITHUB_TOKEN"]
+            except KeyError: 
+                print "$GITHUB_TOKEN not set. Can't open PR"
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1505,3 +1508,23 @@ def wheel(_):
         archive_name=archive_name,
         base_dir=base_dir
     ))
+
+GITHUB_PULL_URL = ("%s/repos/%s/pulls")
+
+def create_pull_request(options, user, token, title,
+                        github_url='https://api.github.com'):
+    headers = {"Authorization": "token %s" % token,
+            'Content-Type': 'application/json'}
+    data = {
+            "title": title,
+            "base": options.base,
+            "head": options.head
+    }
+    if options.body:
+        data["body"] = options.body
+    response = requests.post(GITHUB_PULL_URL % github_url, headers=headers,
+                             data=json.dumps(data))
+    if response.status_code not in range(200, 299):
+        raise Exception("Response %d: %s" % (response.status_code,
+                                             response.content))
+    return response.json()
