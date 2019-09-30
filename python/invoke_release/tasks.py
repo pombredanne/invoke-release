@@ -49,6 +49,8 @@ PARAMETERS_CONFIGURED = False
 
 __POST_APPLY = False
 
+GITHUB_PULL_URL = ("%s/repos/%s/pulls")
+
 __all__ = [
     'configure_release_parameters',
     'version',
@@ -1362,9 +1364,11 @@ def release(_, verbose=False, no_stash=False):
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
             try:  
-                os.environ["GITHUB_TOKEN"]
+              os.environ["GITHUB_TOKEN"]
             except KeyError: 
-                print "$GITHUB_TOKEN not set. Can't open PR"
+              _standard_output("$GITHUB_TOKEN not set. Can't open PR")
+            else:
+              create_pull_request()
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1509,7 +1513,6 @@ def wheel(_):
         base_dir=base_dir
     ))
 
-GITHUB_PULL_URL = ("%s/repos/%s/pulls")
 
 def create_pull_request(options, user, token, title,
                         github_url='https://api.github.com'):
