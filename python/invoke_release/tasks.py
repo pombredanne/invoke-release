@@ -1368,7 +1368,11 @@ def release(_, verbose=False, no_stash=False):
             except KeyError: 
               _standard_output("$GITHUB_TOKEN not set. Can't open PR")
             else:
-              create_pull_request()
+              options = {
+                "head": branch_name,
+                "base": "master",
+              }
+              create_pull_request(options, "user", os.environ["GITHUB_TOKEN"], "invoke-release pull request")
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
