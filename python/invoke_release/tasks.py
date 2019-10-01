@@ -1363,16 +1363,16 @@ def release(_, verbose=False, no_stash=False):
 
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
-            try:  
-              os.environ["GITHUB_TOKEN"]
-            except KeyError: 
-              _standard_output("$GITHUB_TOKEN not set. Can't open PR")
+            try:
+                os.environ["GITHUB_TOKEN"]
+            except KeyError:
+                _standard_output("$GITHUB_TOKEN not set. Can't open PR")
             else:
-              options = {
-                "head": branch_name,
-                "base": "master",
-              }
-              create_pull_request(options, "user", os.environ["GITHUB_TOKEN"], "invoke-release pull request")
+                options = {
+                  "head": branch_name,
+                  "base": "master",
+                }
+                create_pull_request(options, "user", os.environ["GITHUB_TOKEN"], "invoke-release pull request")
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1521,7 +1521,7 @@ def wheel(_):
 def create_pull_request(options, user, token, title,
                         github_url='https://api.github.com'):
     headers = {"Authorization": "token %s" % token,
-            'Content-Type': 'application/json'}
+               'Content-Type': 'application/json'}
     data = {
             "title": title,
             "base": options.base,

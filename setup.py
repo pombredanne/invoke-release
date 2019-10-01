@@ -16,6 +16,7 @@ install_requires = [
     'invoke~=0.22.0',
     'six~=1.11.0',
     'wheel~=0.31.1',
+    'requests~=2.22.0'
 ]
 
 tests_require = [
