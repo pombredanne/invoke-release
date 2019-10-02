@@ -1,6 +1,12 @@
 Changelog
 =========
 
+4.3.0 (2019-10-02)
+------------------
+- Improve `invoke release` workflow by suggesting a version to bump to. (#18)
+- Fix: When using PRs it should go back to the current_branch instead of master.
+- [PATCH] Fix typo in cherry-pick prompt message (#17)
+
 4.2.0 (2019-09-12)
 ------------------
 - [MINOR] Automate creation of branch for cherry-picks/fixes.
