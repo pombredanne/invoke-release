@@ -4,10 +4,10 @@ import codecs
 import datetime
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
-import shlex
 from distutils.version import LooseVersion
 
 from invoke import task
@@ -80,6 +80,10 @@ INSTRUCTION_DELETE = 'delete'
 INSTRUCTION_EXIT = 'exit'
 INSTRUCTION_ROLLBACK = 'rollback'
 INSTRUCTION_MAJOR = 'major'
+
+MAJOR_VERSION_PREFIX = '- [MAJOR]'
+MINOR_VERSION_PREFIX = '- [MINOR]'
+PATCH_VERSION_PREFIX = '- [PATCH]'
 
 
 class ErrorStreamWrapper(object):
@@ -1045,6 +1049,60 @@ def _post_rollback(current_version, rollback_to_version):
         plugin.post_rollback(ROOT_DIRECTORY, current_version, rollback_to_version)
 
 
+def _get_version_element_to_bump_if_any(changelog_message):
+    untagged_commit_present = False
+    patch_commit_present = False
+    minor_commit_present = False
+
+    for line in changelog_message:
+        if line.startswith(MAJOR_VERSION_PREFIX):
+            return MAJOR_VERSION_PREFIX
+        if line.startswith(MINOR_VERSION_PREFIX):
+            minor_commit_present = True
+        elif line.startswith(PATCH_VERSION_PREFIX):
+            patch_commit_present = True
+        else:
+            untagged_commit_present = True
+
+    version = PATCH_VERSION_PREFIX if patch_commit_present else None
+    version = MINOR_VERSION_PREFIX if minor_commit_present else version
+
+    return version if not untagged_commit_present else None
+
+
+def _bump_version_according_to_tag(current_version, version_element_to_bump):
+
+    if version_element_to_bump == PATCH_VERSION_PREFIX:
+        return (current_version[0], current_version[1], current_version[2] + 1)
+    if version_element_to_bump == MINOR_VERSION_PREFIX:
+        return (current_version[0], current_version[1] + 1, 0)
+    if version_element_to_bump == MAJOR_VERSION_PREFIX:
+        if current_version[0] == 0:
+            # For MAJOR version zero, recommend to bump a MINOR version instead since going for version 1.x.x should be
+            # a conscious decision and suggestion wouldn't be necessary.
+            return (current_version[0], current_version[1] + 1, 0)
+        else:
+            return (current_version[0] + 1, 0, 0)
+
+    return ''
+
+
+def _suggest_version(current_version, version_element_to_bump):
+    current_version = tuple(
+        map(
+            int,
+            current_version.split('-')[0].split('+')[0].split('.')[:3]
+        )
+    )
+
+    return '.'.join(
+        map(
+            str,
+            _bump_version_according_to_tag(current_version, version_element_to_bump)
+        )
+    ) or None
+
+
 def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None,
                                  use_pull_request=False, use_tag=True):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
@@ -1293,7 +1351,21 @@ def release(_, verbose=False, no_stash=False):
         _standard_output('Releasing {}...', MODULE_DISPLAY_NAME)
         _standard_output('Current version: {}', __version__)
 
-        release_version = _prompt('Enter a new version (or "exit"):').lower()
+        cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
+        suggested_version = _suggest_version(__version__, _get_version_element_to_bump_if_any(cl_message))
+
+        instruction = None
+        if suggested_version:
+            instruction = _prompt(
+               'According to the changelog message the next version should be `{}`. '
+               'Do you want to proceed with the suggested version? (Y/n)'.format(suggested_version)
+            ).lower() or INSTRUCTION_YES
+
+        if instruction == INSTRUCTION_YES:
+            release_version = suggested_version
+        else:
+            release_version = _prompt('Enter a new version (or "exit"):').lower()
+
         if not release_version or release_version == INSTRUCTION_EXIT:
             raise ReleaseExit()
 
@@ -1331,8 +1403,6 @@ def release(_, verbose=False, no_stash=False):
             raise ReleaseFailure(
                 'Tag {} already exists locally or remotely (or both). Cannot create version.'.format(release_version),
             )
-
-        cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
 
         instruction = _prompt('The release has not yet been committed. Are you ready to commit it? (Y/n):').lower()
         if instruction and instruction != INSTRUCTION_YES:
