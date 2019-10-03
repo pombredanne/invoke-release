@@ -49,7 +49,7 @@ PARAMETERS_CONFIGURED = False
 
 __POST_APPLY = False
 
-GITHUB_PULL_URL = ("%s/repos/%s/pulls")
+GITHUB_PULL_URL = 'https://api.github.com/repos/{repo_name}/pulls'
 
 __all__ = [
     'configure_release_parameters',
@@ -1370,9 +1370,9 @@ def release(_, verbose=False, no_stash=False):
             else:
                 options = {
                   "head": branch_name,
-                  "base": "master",
+                  "base": BRANCH_MASTER,
                 }
-                create_pull_request(options, "user", os.environ["GITHUB_TOKEN"], "invoke-release pull request")
+                create_pull_request(options, os.environ["GITHUB_TOKEN"], "invoke-release pull request", repo_name)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1518,9 +1518,8 @@ def wheel(_):
     ))
 
 
-def create_pull_request(options, user, token, title,
-                        github_url='https://api.github.com'):
-    headers = {"Authorization": "token %s" % token,
+def create_pull_request(options, token, title, repo_name):
+    headers = {"Authorization": 'token {}'.format(token),
                'Content-Type': 'application/json'}
     data = {
             "title": title,
@@ -1529,9 +1528,8 @@ def create_pull_request(options, user, token, title,
     }
     if options.body:
         data["body"] = options.body
-    response = requests.post(GITHUB_PULL_URL % github_url, headers=headers,
+    response = requests.post(GITHUB_PULL_URL.format(repo_name), headers=headers,
                              data=json.dumps(data))
     if response.status_code not in range(200, 299):
-        raise Exception("Response %d: %s" % (response.status_code,
-                                             response.content))
+         _standard_output("Response %d: %s" % (response.status_code, response.content))
     return response.json()
