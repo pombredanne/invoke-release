@@ -2,9 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import codecs
 import datetime
-import json
 import os
-import requests
 import re
 import subprocess
 import sys
@@ -16,6 +14,10 @@ from invoke import task
 import six
 from six import moves
 from wheel import archive
+
+from contextlib import closing
+import json
+from six.moves import urllib
 
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
@@ -48,8 +50,6 @@ CHANGELOG_COMMENT_FIRST_CHAR = '#'
 PARAMETERS_CONFIGURED = False
 
 __POST_APPLY = False
-
-GITHUB_PULL_URL = 'https://api.github.com/repos/{repo_name}/pulls'
 
 __all__ = [
     'configure_release_parameters',
@@ -1368,11 +1368,12 @@ def release(_, verbose=False, no_stash=False):
             except KeyError:
                 _standard_output("$GITHUB_TOKEN not set. Can't open PR")
             else:
-                options = {
+                options_pull_request = {
+                  "title": "invoke-release pull request",
                   "head": branch_name,
                   "base": BRANCH_MASTER,
                 }
-                create_pull_request(options, os.environ["GITHUB_TOKEN"], "invoke-release pull request", repo_name)
+                open_pull_request(options_pull_request, os.environ["GITHUB_TOKEN"], repo_owner, repo_name)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1518,18 +1519,26 @@ def wheel(_):
     ))
 
 
-def create_pull_request(options, token, title, repo_name):
-    headers = {"Authorization": 'token {}'.format(token),
-               'Content-Type': 'application/json'}
-    data = {
-            "title": title,
-            "base": options.base,
-            "head": options.head
+def open_pull_request(options, token, gh_owner,gh_repo):
+    url = 'https://api.github.com/repos/{gh_owner}/{gh_repo}/pulls'
+    values = {
+      'title': options.title,
+      'base': options.base,
+      'head': options.base.head,
+      'body': options.body
     }
-    if options.body:
-        data["body"] = options.body
-    response = requests.post(GITHUB_PULL_URL.format(repo_name), headers=headers,
-                             data=json.dumps(data))
-    if response.status_code not in range(200, 299):
-         _standard_output("Response %d: %s" % (response.status_code, response.content))
-    return response.json()
+
+    data = json.dumps(values).encode('utf-8')
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'token {}'.format(token),
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Length': len(data)
+    }
+
+    try:
+        req = urllib.request.Request(url, data, headers)
+        with closing(urllib.request.urlopen(req)) as f:
+            res = f.read()
+    except Exception as e:
+        print(e)
