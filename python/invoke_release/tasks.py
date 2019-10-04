@@ -1368,7 +1368,7 @@ def release(_, verbose=False, no_stash=False):
             except KeyError:
                 _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
             else:
-                open_pull_request(branch_name, BRANCH_MASTER, release_version)
+                open_pull_request(branch_name, BRANCH_MASTER, release_version, os.environ["GITHUB_TOKEN"])
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1514,7 +1514,7 @@ def wheel(_):
     ))
 
 
-def open_pull_request(base, head, title):
+def open_pull_request(base, head, title, token):
     remote = subprocess.check_output(
         ['git', 'remote', 'get-url', 'origin'],
         stderr=subprocess.STDOUT,
