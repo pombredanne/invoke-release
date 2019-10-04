@@ -15,6 +15,10 @@ import six
 from six import moves
 from wheel import archive
 
+from contextlib import closing
+import json
+from six.moves import urllib
+
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
 RE_FILE_EXTENSION = re.compile(r'\.\w+$')
@@ -1429,7 +1433,12 @@ def release(_, verbose=False, no_stash=False):
 
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
-
+            try:
+                github_token = os.environ["GITHUB_TOKEN"]
+            except KeyError:
+                _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
+            else:
+                open_pull_request(branch_name, current_branch_name, release_version, github_token)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1573,3 +1582,33 @@ def wheel(_):
         archive_name=archive_name,
         base_dir=base_dir
     ))
+
+
+def open_pull_request(base, head, title, token):
+    remote = subprocess.check_output(
+        ['git', 'remote', 'get-url', 'origin'],
+        stderr=subprocess.STDOUT,
+        )
+    repo = (remote.split(':')[1].split('.')[0])
+    url = 'https://api.github.com/repos/{}/pulls'.format(repo)
+
+    values = {
+      'title': title,
+      'base': base,
+      'head': head
+    }
+
+    body = json.dumps(values).encode('utf-8')
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'token {}'.format(token),
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Length': len(body)
+    }
+
+    try:
+        req = urllib.request.Request(url, body, headers)
+        with closing(urllib.request.urlopen(req)) as f:
+            f.read()
+    except Exception:
+        _error_output('Could not open Github PR')
