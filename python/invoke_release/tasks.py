@@ -1519,8 +1519,8 @@ def wheel(_):
     ))
 
 
-def open_pull_request(options, token, gh_owner,gh_repo):
-    url = 'https://api.github.com/repos/{gh_owner}/{gh_repo}/pulls'
+def open_pull_request(options, token, gh_owner, gh_repo):
+    url = 'https://api.github.com/repos/{owner}/{repo}/pulls'.format(gh_owner, gh_repo)
     values = {
       'title': options.title,
       'base': options.base,
@@ -1528,17 +1528,18 @@ def open_pull_request(options, token, gh_owner,gh_repo):
       'body': options.body
     }
 
-    data = json.dumps(values).encode('utf-8')
+    body = json.dumps(values).encode('utf-8')
     headers = {
         'Content-Type': 'application/json',
         'Authorization': 'token {}'.format(token),
         'Accept': 'application/vnd.github.v3+json',
-        'Content-Length': len(data)
+        'Content-Length': len(body)
     }
 
     try:
-        req = urllib.request.Request(url, data, headers)
+        req = urllib.request.Request(url, body, headers)
         with closing(urllib.request.urlopen(req)) as f:
             res = f.read()
-    except Exception as e:
-        print(e)
+    except Exception:
+        _error_output('Could not open Github PR')
+
