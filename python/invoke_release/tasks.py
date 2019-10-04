@@ -1364,11 +1364,11 @@ def release(_, verbose=False, no_stash=False):
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
             try:
-                os.environ["GITHUB_TOKEN"]
+                github_token= os.environ["GITHUB_TOKEN"]
             except KeyError:
                 _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
             else:
-                open_pull_request(branch_name, BRANCH_MASTER, release_version, os.environ["GITHUB_TOKEN"])
+                open_pull_request(branch_name, current_branch_name, release_version, github_token)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
