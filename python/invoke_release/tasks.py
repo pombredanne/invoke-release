@@ -1364,7 +1364,7 @@ def release(_, verbose=False, no_stash=False):
         if USE_PULL_REQUEST:
             _checkout_branch(verbose, current_branch_name)
             try:
-                github_token= os.environ["GITHUB_TOKEN"]
+                github_token = os.environ["GITHUB_TOKEN"]
             except KeyError:
                 _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
             else:
@@ -1520,7 +1520,7 @@ def open_pull_request(base, head, title, token):
         stderr=subprocess.STDOUT,
         )
     repo = (remote.split(':')[1].split('.')[0])
-    url = 'https://api.github.com/repos/{repo}/pulls'.format(repo)
+    url = 'https://api.github.com/repos/{}/pulls'.format(repo)
 
     values = {
       'title': title,
