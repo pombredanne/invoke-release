@@ -1539,6 +1539,6 @@ def open_pull_request(base, head, title, token):
     try:
         req = urllib.request.Request(url, body, headers)
         with closing(urllib.request.urlopen(req)) as f:
-                f.read()
+            f.read()
     except Exception:
         _error_output('Could not open Github PR')
