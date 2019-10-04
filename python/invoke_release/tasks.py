@@ -1366,14 +1366,9 @@ def release(_, verbose=False, no_stash=False):
             try:
                 os.environ["GITHUB_TOKEN"]
             except KeyError:
-                _standard_output("$GITHUB_TOKEN not set. Can't open PR")
+                _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
             else:
-                options_pull_request = {
-                  "title": "invoke-release pull request",
-                  "head": branch_name,
-                  "base": BRANCH_MASTER,
-                }
-                open_pull_request(options_pull_request, os.environ["GITHUB_TOKEN"], repo_owner, repo_name)
+                open_pull_request(branch_name, BRANCH_MASTER, release_version)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1519,13 +1514,18 @@ def wheel(_):
     ))
 
 
-def open_pull_request(options, token, gh_owner, gh_repo):
-    url = 'https://api.github.com/repos/{owner}/{repo}/pulls'.format(gh_owner, gh_repo)
+def open_pull_request(base, head, title):
+    remote = subprocess.check_output(
+        ['git', 'remote', 'get-url', 'origin'],
+        stderr=subprocess.STDOUT,
+        )
+    repo = (remote.split(':')[1].split('.')[0])
+    url = 'https://api.github.com/repos/{repo}/pulls'.format(repo)
+
     values = {
-      'title': options.title,
-      'base': options.base,
-      'head': options.base.head,
-      'body': options.body
+      'title': title,
+      'base': base,
+      'head': head
     }
 
     body = json.dumps(values).encode('utf-8')
@@ -1539,7 +1539,6 @@ def open_pull_request(options, token, gh_owner, gh_repo):
     try:
         req = urllib.request.Request(url, body, headers)
         with closing(urllib.request.urlopen(req)) as f:
-            res = f.read()
+                f.read()
     except Exception:
         _error_output('Could not open Github PR')
-
