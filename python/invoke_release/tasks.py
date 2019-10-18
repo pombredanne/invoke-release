@@ -610,6 +610,10 @@ def _push_release_changes(release_version, branch_name, verbose):
                 stderr=sys.stderr,
             )
 
+        if USE_PULL_REQUEST:
+            _checkout_branch(verbose, BRANCH_MASTER)
+            _delete_branch(verbose, branch_name)
+
         _verbose_output(verbose, 'Finished pushing changes to remote origin.')
 
         return PUSH_RESULT_PUSHED
