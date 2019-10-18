@@ -1,6 +1,23 @@
 Changelog
 =========
 
+4.4.0 (2019-10-17)
+------------------
+- Ensure the local `invoke-release-{}-{}` branch is deleted after pushhing it to `origin`
+- over idented
+- addressed comments
+- code refactor && fetching repo owner and name
+- code refactor && fetching repo owner and name
+- code refactor && fetching repo owner and name
+- better error handling
+- refactoring to avoid adding a new dependency
+- comments addressed
+- add requests dep
+- check env token
+- fixxes
+- open PR
+- WIP
+
 4.3.0 (2019-10-02)
 ------------------
 - Improve `invoke release` workflow by suggesting a version to bump to. (#18)
