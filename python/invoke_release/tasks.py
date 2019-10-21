@@ -1424,26 +1424,26 @@ def release(_, verbose=False, no_stash=False):
         _pre_commit(__version__, release_version)
 
         if USE_PULL_REQUEST:
-            branch_name = _get_branch_name(verbose)
-            invoke_branch_name = 'invoke-release-{}-{}'.format(branch_name, release_version)
-            _create_branch(verbose, invoke_branch_name)
+            current_branch_name = _get_branch_name(verbose)
+            branch_name = 'invoke-release-{}-{}'.format(current_branch_name, release_version)
+            _create_branch(verbose, branch_name)
         _commit_release_changes(release_version, cl_message, verbose)
 
         _pre_push(__version__, release_version)
 
         if USE_TAG:
             _tag_branch(release_version, cl_message, verbose)
-        pushed_or_rolled_back = _push_release_changes(release_version, invoke_branch_name, verbose)
+        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
 
         if USE_PULL_REQUEST:
-            if branch_name != BRANCH_MASTER:
-                _checkout_branch(verbose, branch_name)
+            if current_branch_name != BRANCH_MASTER:
+                _checkout_branch(verbose, current_branch_name)
             try:
                 github_token = os.environ["GITHUB_TOKEN"]
             except KeyError:
                 _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
             else:
-                open_pull_request(invoke_branch_name, branch_name, release_version, github_token)
+                open_pull_request(branch_name, current_branch_name, release_version, github_token)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
