@@ -1,6 +1,11 @@
 Changelog
 =========
 
+4.4.1 (2019-10-21)
+------------------
+- [PATCH] Undo branch name changes
+- [PATCH] Avoid re-checking out to the original branch if that branch is `master`
+
 4.4.0 (2019-10-17)
 ------------------
 - Ensure the local `invoke-release-{}-{}` branch is deleted after pushhing it to `origin`
