@@ -1,7 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 
 import codecs
+from contextlib import closing
 import datetime
+import json
 import os
 import re
 import shlex
@@ -13,11 +15,8 @@ from distutils.version import LooseVersion
 from invoke import task
 import six
 from six import moves
-from wheel import archive
-
-from contextlib import closing
-import json
 from six.moves import urllib
+from wheel import archive
 
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
@@ -1439,16 +1438,22 @@ def release(_, verbose=False, no_stash=False):
             if current_branch_name != BRANCH_MASTER:
                 _checkout_branch(verbose, current_branch_name)
             try:
-                github_token = os.environ["GITHUB_TOKEN"]
+                github_token = os.environ['GITHUB_TOKEN']
             except KeyError:
-                _standard_output("GITHUB_TOKEN env var not set. Unable to open a github PR")
+                pr_opened = False
+                _standard_output('Then environment variable `GITHUB_TOKEN` is not set. Will not open GitHub PR.')
             else:
-                open_pull_request(branch_name, current_branch_name, release_version, github_token)
+                pr_opened = open_pull_request(branch_name, current_branch_name, release_version, github_token)
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
-            _standard_output("You're almost done! The release process will be complete when you create "
-                             "a pull request and it is merged.")
+            if pr_opened:
+                _standard_output('GitHub PR created successfully. URL: {}'.format(pr_opened))
+            else:
+                _standard_output(
+                    "You're almost done! The release process will be complete when you create "
+                    "a pull request and it is merged."
+                )
         else:
             _standard_output('Release process is complete.')
     except ReleaseFailure as e:
@@ -1589,31 +1594,34 @@ def wheel(_):
     ))
 
 
-def open_pull_request(base, head, title, token):
-    remote = subprocess.check_output(
-        ['git', 'remote', 'get-url', 'origin'],
-        stderr=subprocess.STDOUT,
+def open_pull_request(branch_name, current_branch_name, version_to_release, github_token):
+    remote = six.text_type(
+        subprocess.check_output(
+            ['git', 'remote', 'get-url', 'origin'],
+            stderr=subprocess.STDOUT,
         )
+    )
     repo = (remote.split(':')[1].split('.')[0])
     url = 'https://api.github.com/repos/{}/pulls'.format(repo)
 
     values = {
-      'title': title,
-      'base': base,
-      'head': head
+        'title': 'Released version {}'.format(version_to_release),
+        'base': current_branch_name,
+        'head': branch_name,
     }
 
     body = json.dumps(values).encode('utf-8')
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'token {}'.format(token),
+        'Authorization': 'token {}'.format(github_token),
         'Accept': 'application/vnd.github.v3+json',
-        'Content-Length': len(body)
+        'Content-Length': len(body),
     }
 
     try:
         req = urllib.request.Request(url, body, headers)
         with closing(urllib.request.urlopen(req)) as f:
-            f.read()
+            # GitHub will always answer with 201 if the PR was `CREATED`.
+            return f.getcode() == 201 and json.loads(f.read().decode('utf-8'))['html_url']
     except Exception:
         _error_output('Could not open Github PR')
