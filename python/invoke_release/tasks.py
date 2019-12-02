@@ -1443,7 +1443,13 @@ def release(_, verbose=False, no_stash=False):
                 pr_opened = False
                 _standard_output('Then environment variable `GITHUB_TOKEN` is not set. Will not open GitHub PR.')
             else:
-                pr_opened = open_pull_request(branch_name, current_branch_name, release_version, github_token)
+                pr_opened = open_pull_request(
+                    branch_name,
+                    current_branch_name,
+                    MODULE_DISPLAY_NAME,
+                    release_version,
+                    github_token,
+                )
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
         if USE_PULL_REQUEST:
@@ -1594,7 +1600,7 @@ def wheel(_):
     ))
 
 
-def open_pull_request(branch_name, current_branch_name, version_to_release, github_token):
+def open_pull_request(branch_name, current_branch_name, display_name, version_to_release, github_token):
     remote = six.text_type(
         subprocess.check_output(
             ['git', 'remote', 'get-url', 'origin'],
@@ -1605,7 +1611,7 @@ def open_pull_request(branch_name, current_branch_name, version_to_release, gith
     url = 'https://api.github.com/repos/{}/pulls'.format(repo)
 
     values = {
-        'title': 'Released version {}'.format(version_to_release),
+        'title': 'Released {} version {}'.format(display_name, version_to_release),
         'base': current_branch_name,
         'head': branch_name,
     }
