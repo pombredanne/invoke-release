@@ -3,14 +3,15 @@ from __future__ import absolute_import, unicode_literals
 import codecs
 from contextlib import closing
 import datetime
+from distutils.version import LooseVersion
 import json
 import os
+from pkg_resources import parse_version
 import re
 import shlex
 import subprocess
 import sys
 import tempfile
-from distutils.version import LooseVersion
 
 from invoke import task
 import six
@@ -1398,7 +1399,7 @@ def release(_, verbose=False, no_stash=False):
             filter(None, ['.'.join(map(six.text_type, version_info[:3])), (version_info[3:] or [None])[0]])
         )  # This must match the code in VERSION_VARIABLE_TEMPLATE at the top of this file
 
-        if not (LooseVersion(release_version) > LooseVersion(__version__)):
+        if not (parse_version(release_version) > parse_version(__version__)):
             raise ReleaseFailure(
                 'New version number {new_version} is not greater than current version {old_version}.'.format(
                     new_version=release_version,
