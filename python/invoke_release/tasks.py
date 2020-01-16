@@ -1435,7 +1435,9 @@ def release(_, verbose=False, no_stash=False):
             _tag_branch(release_version, cl_message, verbose)
         pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
 
-        if USE_PULL_REQUEST:
+        uses_prs_and_branch_is_pushed = USE_PULL_REQUEST and pushed_or_rolled_back == PUSH_RESULT_PUSHED
+
+        if uses_prs_and_branch_is_pushed:
             if current_branch_name != BRANCH_MASTER:
                 _checkout_branch(verbose, current_branch_name)
             try:
@@ -1453,7 +1455,7 @@ def release(_, verbose=False, no_stash=False):
                 )
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
-        if USE_PULL_REQUEST:
+        if uses_prs_and_branch_is_pushed:
             if pr_opened:
                 _standard_output('GitHub PR created successfully. URL: {}'.format(pr_opened))
             else:
