@@ -1,6 +1,11 @@
 Changelog
 =========
 
+4.5.0 (2020-01-15)
+------------------
+- [PATCH] Fix GitHub PRs workflow when not pushing branch  (#33)
+- [MINOR] Use parse_version instead of LooseVersion to properly compare versions
+
 4.4.3 (2019-12-02)
 ------------------
 - [PATCH] Fix title on PR creation (#31)
