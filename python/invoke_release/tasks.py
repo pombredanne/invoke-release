@@ -22,7 +22,7 @@ from wheel import archive
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
 RE_FILE_EXTENSION = re.compile(r'\.\w+$')
-RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.-]*[a-zA-Z\d]+)?$')
+RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.+-]*[a-zA-Z\d]+)?$')
 RE_VERSION_BRANCH_MAJOR = re.compile(r'^\d+\.x\.x$')
 RE_VERSION_BRANCH_MINOR = re.compile(r'^\d+\.\d+\.x$')
 RE_SPLIT_AFTER_DIGITS = re.compile(r'(\d+)')
