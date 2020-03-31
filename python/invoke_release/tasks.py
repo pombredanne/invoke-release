@@ -29,7 +29,7 @@ RE_SPLIT_AFTER_DIGITS = re.compile(r'(\d+)')
 
 VERSION_INFO_VARIABLE_TEMPLATE = '__version_info__ = {}'
 VERSION_VARIABLE_TEMPLATE = (
-    "__version__ = '-'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
+    "__version__ = '{}'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
     "(__version_info__[3:] or [None])[0]]))"
 )
 RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}'
@@ -214,7 +214,7 @@ def _cleanup_task(verbose):
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
 
-def _write_to_version_file(release_version, version_info, verbose):
+def _write_to_version_file(release_version, version_info, version_separator, verbose):
     _verbose_output(verbose, 'Writing version to {}...', VERSION_FILENAME)
 
     if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
@@ -238,7 +238,7 @@ def _write_to_version_file(release_version, version_info, verbose):
                 elif line.startswith('__version__'):
                     if not version_info_written:
                         output.append(version_info)
-                    output.append(VERSION_VARIABLE_TEMPLATE)
+                    output.append(VERSION_VARIABLE_TEMPLATE.format(version_separator))
                 else:
                     output.append(line.rstrip())
 
@@ -1388,14 +1388,17 @@ def release(_, verbose=False, no_stash=False):
         # Deconstruct and reconstruct the version, to make sure it is consistent everywhere
         version_info = release_version.split('.', 2)
         end_parts = list(filter(None, RE_SPLIT_AFTER_DIGITS.split(version_info[2], 1)))
+        version_separator = '-'
         if len(end_parts) > 1:
             version_info[0] = int(version_info[0])
             version_info[1] = int(version_info[1])
             version_info[2] = int(end_parts[0])
-            version_info.append(end_parts[1].strip(' .-_'))
+            version_info.append(end_parts[1].strip(' .-_+'))
+            if end_parts[1][0] in ('-', '+', '.'):
+                version_separator = end_parts[1][0]
         else:
             version_info = list(map(int, version_info))
-        release_version = '-'.join(
+        release_version = version_separator.join(
             filter(None, ['.'.join(map(six.text_type, version_info[:3])), (version_info[3:] or [None])[0]])
         )  # This must match the code in VERSION_VARIABLE_TEMPLATE at the top of this file
 
@@ -1418,7 +1421,7 @@ def release(_, verbose=False, no_stash=False):
 
         _standard_output('Releasing {module} version: {version}', module=MODULE_DISPLAY_NAME, version=release_version)
 
-        _write_to_version_file(release_version, version_info, verbose)
+        _write_to_version_file(release_version, version_info, version_separator, verbose)
         _write_to_changelog_file(release_version, cl_header, cl_message, cl_footer, verbose)
 
         _pre_commit(__version__, release_version)
