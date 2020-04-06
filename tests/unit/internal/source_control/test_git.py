@@ -226,6 +226,12 @@ class TestGit:
         assert Git.remote_url_to_github_account_and_repo('file:///path/to/local/repo/') == (
             'local/repo'
         )
+        assert Git.remote_url_to_github_account_and_repo('file:///path/to/local/repo.git') == (
+            'local/repo'
+        )
+        assert Git.remote_url_to_github_account_and_repo('file:///path/to/local/repo.git/') == (
+            'local/repo'
+        )
         assert Git.remote_url_to_github_account_and_repo('file:///Path/To/Local/Repo/.git') == (
             'Local/Repo'
         )

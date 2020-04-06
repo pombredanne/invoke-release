@@ -243,6 +243,12 @@ class SourceControl(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
+    def pull_if_tracking_remote(self) -> bool:
+        """
+        If the current branch is tracking a remote branch, pull it to get its latest changes.
+        """
+
+    @abc.abstractmethod
     def get_last_commit_identifier(self) -> str:
         """
         Return the identifier of the most-recent commit at the current head.

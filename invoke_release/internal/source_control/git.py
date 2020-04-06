@@ -24,7 +24,7 @@ __all__ = (
 
 
 RE_ACCOUNT_REPO = re.compile(
-    r'(?:https?://|git@|file:///)(?:[a-z0-9_./-]+)[:/](?P<repo>[a-z0-9_-]+/[a-z0-9_-]+)(?:/?.git|/)?$',
+    r'(?:https?://|git@|file:///)(?:[a-z0-9_./-]+)[:/](?P<repo>[a-z0-9_-]+/[a-z0-9_-]+)(?:.git)?/?(?:.git)?/?$',
     re.IGNORECASE
 )
 
@@ -512,6 +512,29 @@ class Git(SourceControl):
             )
 
             self._context.io.verbose_output('Done setting branch tracking.')
+
+    @handle_subprocess_errors
+    def pull_if_tracking_remote(self) -> bool:
+        result = subprocess.check_output(
+            ['git', 'status', '-sb'],
+            stderr=subprocess.STDOUT,
+        ).decode('utf-8').strip().split('\n')[0].strip(' #\n\t').split('...')
+        assert len(result) in (1, 2)
+
+        if len(result) == 2 and result[1].strip().startswith('origin/'):
+            self._context.io.verbose_output(
+                'Local branch {} tracks remote {}, so pulling changes',
+                result[0],
+                result[1],
+            )
+
+            subprocess.check_call(['git', 'pull'], stdout=sys.stdout, stderr=sys.stderr)
+
+            self._context.io.verbose_output('Done pulling changes')
+
+            return True
+
+        return False
 
     @handle_subprocess_errors
     def get_last_commit_identifier(self) -> str:

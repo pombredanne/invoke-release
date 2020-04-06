@@ -1057,6 +1057,7 @@ def test_master_pre_release_failed(
 
     tester.wait_for_finish()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1102,6 +1103,7 @@ def test_not_master_not_version_branch(
 
     tester.wait_for_finish()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1115,7 +1117,7 @@ def test_not_master_not_version_branch(
     ], any_order=False)
     task_bootstrap.io.error_output.assert_has_calls([
         mock.call(
-            'You are currently on branch "{branch}" instead of "{master}." You should only release from {master} '
+            'You are currently on branch "{branch}" instead of "{master}." You must release only from {master} '
             'or version branches, and this does not appear to be a version branch (must match '
             '\\d+\\.x\\.x or \\d+.\\d+\\.x).\nCanceling release!',
             branch='development',
@@ -1153,6 +1155,7 @@ def test_not_master_but_is_version_branch_cancel(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1168,7 +1171,7 @@ def test_not_master_but_is_version_branch_cancel(
 
     assert prompt.message == (
         'You are currently on branch "{branch}" instead of "{master}." Are you sure you want to continue releasing '
-        'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
+        'from "{branch}?" You must do this only from version branches, and only when higher versions have been '
         'released from the parent branch. (y/N):'
     )
     assert prompt.args == ()
@@ -1214,6 +1217,7 @@ def test_not_master_but_is_version_branch_accept_but_error_during_prompt(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1229,7 +1233,7 @@ def test_not_master_but_is_version_branch_accept_but_error_during_prompt(
 
     assert prompt.message == (
         'You are currently on branch "{branch}" instead of "{master}." Are you sure you want to continue releasing '
-        'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
+        'from "{branch}?" You must do this only from version branches, and only when higher versions have been '
         'released from the parent branch. (y/N):'
     )
     assert prompt.args == ()
@@ -1292,6 +1296,7 @@ def test_master_reject_suggested_version_then_exit(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1380,6 +1385,7 @@ def test_master_no_suggested_version_then_exit(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1452,6 +1458,7 @@ def test_master_accept_suggested_version_but_conflicts(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1526,6 +1533,7 @@ def test_master_no_suggested_version_enter_version_but_conflicts(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1600,6 +1608,7 @@ def test_master_cancel_on_prompt_to_commit_changes(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1687,6 +1696,7 @@ def test_master_pre_commit_hook_failure(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1784,6 +1794,7 @@ def test_master_pre_push_hook_failure(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -1896,6 +1907,7 @@ def test_master_use_pull_request_pre_push_hook_failure(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2008,6 +2020,7 @@ def test_master_prompt_to_push_roll_back(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2149,6 +2162,7 @@ def test_master_prompt_to_push_do_not_push(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2299,6 +2313,7 @@ def test_master_prompt_to_push_do_not_push_no_tag(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2439,6 +2454,7 @@ def test_master_prompt_to_push_accept(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2583,6 +2599,7 @@ def test_master_prompt_to_push_accept_no_tag(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2716,6 +2733,7 @@ def test_master_prompt_to_push_accept_no_tag_with_pull_request(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -2856,6 +2874,7 @@ def test_master_prompt_to_push_accept_no_tag_with_pull_request_which_failed(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',

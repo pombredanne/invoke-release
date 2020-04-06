@@ -47,6 +47,8 @@ def rollback_release(_, verbose=False, no_stash=False):  # type: (str, bool, boo
 
     io.standard_output('Invoke Release {}', __version__)
 
+    source.pull_if_tracking_remote()
+
     project_version = read_project_version(config.module_name, config.version_file_name)
 
     branch_name = source.get_branch_name()

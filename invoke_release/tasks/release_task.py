@@ -92,7 +92,7 @@ def check_branch(
     if branch_name != context.config.master_branch:
         if not RE_VERSION_BRANCH_MAJOR.match(branch_name) and not RE_VERSION_BRANCH_MINOR.match(branch_name):
             context.io.error_output(
-                'You are currently on branch "{branch}" instead of "{master}." You should only release from {master} '
+                'You are currently on branch "{branch}" instead of "{master}." You must release only from {master} '
                 'or version branches, and this does not appear to be a version branch (must match '
                 '\\d+\\.x\\.x or \\d+.\\d+\\.x).\nCanceling release!',
                 branch=branch_name,
@@ -102,7 +102,7 @@ def check_branch(
 
         instruction = context.io.prompt(
             'You are currently on branch "{branch}" instead of "{master}." Are you sure you want to continue releasing '
-            'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
+            'from "{branch}?" You must do this only from version branches, and only when higher versions have been '
             'released from the parent branch. (y/N):',
             branch=branch_name,
             master=context.config.master_branch,
@@ -296,6 +296,8 @@ def release(_, verbose=False, no_stash=False):
     source = config.source_control_class(context)
 
     io.standard_output('Invoke Release {}', __version__)
+
+    source.pull_if_tracking_remote()
 
     project_version = read_project_version(config.module_name, config.version_file_name)
 
