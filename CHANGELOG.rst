@@ -25,11 +25,11 @@ Changelog
 4.4.1 (2019-10-21)
 ------------------
 - [PATCH] Undo branch name changes
-- [PATCH] Avoid re-checking out to the original branch if that branch is `master`
+- [PATCH] Avoid re-checking out to the original branch if that branch is ``master``
 
 4.4.0 (2019-10-17)
 ------------------
-- Ensure the local `invoke-release-{}-{}` branch is deleted after pushhing it to `origin`
+- Ensure the local ``invoke-release-{}-{}`` branch is deleted after pushhing it to ``origin``
 - over idented
 - addressed comments
 - code refactor && fetching repo owner and name
@@ -46,7 +46,7 @@ Changelog
 
 4.3.0 (2019-10-02)
 ------------------
-- Improve `invoke release` workflow by suggesting a version to bump to. (#18)
+- Improve ``invoke release`` workflow by suggesting a version to bump to. (#18)
 - Fix: When using PRs it should go back to the current_branch instead of master.
 - [PATCH] Fix typo in cherry-pick prompt message (#17)
 
@@ -61,7 +61,7 @@ Changelog
 ------------------
 - [MINOR] Add support for pushing to a branch and not tag
   Some projects don't support pushing directly to master without going through a pull request. This new flow, if configured (the existing flow is unchanged), will:
-  - Create a branch named `invoke-release-<base branch>-<new_version>`
+  - Create a branch named ``invoke-release-<base branch>-<new_version>``
   - Push the branch to origin
   - Not create a tag
   A future change will add support for automatically creating the pull request. Users of this flow will typically create some kind of build bot that will verify the pull request, automatically merge it, and create and push a tag.
@@ -95,7 +95,7 @@ Changelog
 - Add ability to sign release tags for increased security
 - Relax requirements for versions to permit alphanumeric qualifier suffixes after the patch version
 - Relax requirements for version branches, rigidify requirements for version numbers released from version branches
-- Support `CHANGELOG.md` and `CHANGELOG.rst` in addition to `CHANGELOG.txt`
+- Support ``CHANGELOG.md`` and ``CHANGELOG.rst`` in addition to ``CHANGELOG.txt``
 - Improve wording of some prompts and messages to reduce confusion
 - Prepare for open sourcing so that it can be used with our open source projects, like Conformity and PySOA
 - Ensure we use colons consistently at the end of all prompts
@@ -105,9 +105,9 @@ Changelog
 3.0.0 (2017-03-17)
 ------------------
 - Made Python 3 compatible
-- Fixed bug in `rollback_release` preventing it from working
-- Fixed bug in `setup.py` preventing it from installing
-- Added a `build_wheel` task
+- Fixed bug in ``rollback_release`` preventing it from working
+- Fixed bug in ``setup.py`` preventing it from installing
+- Added a ``build_wheel`` task
 
 2.0.0 (2016-10-18)
 ------------------
@@ -119,7 +119,7 @@ Changelog
 
 1.3.2 (2016-08-15)
 ------------------
-- Make `invoke release` work with $EDITOR with params
+- Make ``invoke release`` work with $EDITOR with params
 
 1.3.1 (2016-06-17)
 ------------------
@@ -136,21 +136,21 @@ Changelog
 1.2.0 (2016-01-21)
 ------------------
 - Fixed issue with release tool using vi instead of vim by default and vi being linked differently in path
-  - Changed the default from `vi` to `vim`, because it has been established that a `vi` command linked to a non-`vim` executable doesn't work.
-  - Added the ability to specify an Invoke Release-specific editor environmental variable that doesn't conflict with other applications' use of `$EDITOR`.
+  - Changed the default from ``vi`` to ``vim``, because it has been established that a ``vi`` command linked to a non-``vim`` executable doesn't work.
+  - Added the ability to specify an Invoke Release-specific editor environmental variable that doesn't conflict with other applications' use of ``$EDITOR``.
   - Added exception checking to suggest using the environmental variable if an editor fails to launch.
-  - Improved error messages for other command error messages, because `CalledProcessError` never has a value for `e.message`.
+  - Improved error messages for other command error messages, because ``CalledProcessError`` never has a value for ``e.message``.
 
 1.1.1 (2015-12-09)
 ------------------
-- Made file exist checks case-sensitive, because Git is always case sensitive, even though Mac OS X's file system isn't. As a result, if the file was named `CHANGELOG.TXT`, and the release tool called `git add CHANGELOG.txt`, Git would silently fail to add the file without any error codes, and the release tool would incorrectly succeed with a partial release.
+- Made file exist checks case-sensitive, because Git is always case sensitive, even though Mac OS X's file system isn't. As a result, if the file was named ``CHANGELOG.TXT``, and the release tool called ``git add CHANGELOG.txt``, Git would silently fail to add the file without any error codes, and the release tool would incorrectly succeed with a partial release.
 - Fixed a typo in the changelog editor comments.
 
 1.1.0 (2015-11-19)
 ------------------
 - Add changelog details to commit release message
 - Updated release tool to work with branches other than master
-- Refactored to use {}/`format` instead of %s/`%` and fixed a bug with the new changelog feature
+- Refactored to use ``{}`` / ``format`` instead of ``%s`` / ``%`` and fixed a bug with the new changelog feature
 - Improved changelog feature to accept built-up changelog, gather commit messages, edit message in advanced editor
 - Added support for plugins that can execute hooks at various stages of the release lifecycle
 - Updated tool to fail more cleanly instead of erroring out on problems, check if tag already exists before releasing
@@ -179,7 +179,7 @@ No release version exits nicely instead of erroring.
 
 0.7.0 (2015-10-19)
 ------------------
-- Fixed a bug in `python_directory` customization.
+- Fixed a bug in ``python_directory`` customization.
 
 0.6.0 (2015-10-13)
 ------------------

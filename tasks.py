@@ -1,20 +1,12 @@
-from __future__ import absolute_import, unicode_literals
+from invoke_release.config import config
+from invoke_release.plugins.replace import PatternReplaceVersionInFilesPlugin
+from invoke_release.tasks import *  # noqa: F401,F403
 
-import os
-import sys
 
-# Let's eat our own dog food and make sure the local version works for releasing itself
-sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'python')))
-from invoke_release.tasks import *  # noqa: F403
-from invoke_release.plugins import (  # noqa: E402
-    PatternReplaceVersionInFilesPlugin
-)
-
-configure_release_parameters(  # noqa: F405
+config.configure(
     module_name='invoke_release',
     display_name='Invoke Release',
-    python_directory='python',
     plugins=[
-        PatternReplaceVersionInFilesPlugin('README.md')
-    ]
+        PatternReplaceVersionInFilesPlugin('README.rst'),
+    ],
 )

@@ -1,26 +1,37 @@
+os: linux
+dist: xenial
 language: python
-sudo: false
-python:
-  - '2.7'
-  - '3.4'
-  - '3.5'
-  - '3.6'
-  - '3.7'
-
-install:
-  - pip install -U pip setuptools flake8
-  - pip install -e .[testing]
-
-script:
-  - flake8 .
-  - pytest
-
-deploy:
-  provider: pypi
-  user: eventbrite
-  password:
-    secure: SjdN3685Yq41etdyCmvq50abe9AbpG2gjmiYfuIQWjlCSmERHuSENiY4VbQ8CwxGeyIgSoaKHP2kzh+HMTnFYtJraSWV9K/R/M88obHiWpq9ouNH3lMqr2H+Da0/Q0v5OnMrD/qWmG2a6S1VLbazhDGSO9BhM+o6YeZp258YqvievrLSD+6Vjt/uGulmK4ZOiD2p3ImkYFTNiQrJ3OH6SmPGv7E2kJDExqcn+Ci27UvwAkOEB8avtwT3G0SMfjjqkyUEUmlgg4am4ESDVKeBgOBcQ4Bv3nNdSs/hC/SudHXFRHCcGGFvLvDWfj50+iCzq2BMy6Etb7+E+A8BtXj8nlO5efstYsSV0NwB3dhBcQhb23qJMVBalH0f8Qb/wu/Fynqofml27od5hL0fGc15xc6//Nc+HHXB6QIJ/66/kiZEA3x1mPwD25K1YHauwYTP9RsRKXfFgyy+qLMHqtL4I2rlZS1stfTo8RJzFUFx/R3SOltEU7pVMwrohK2Zukqag6KdUjvOmMSzO6kqLxvgC27+HSoPGOWHRyHNRXBnObuEU7IRqq+vuLDZEdk/Dz5FDTLRqx2j3woBnQyp/JmTNuqWTr6LVnYkQhVG/DlCc6QOPZ081geGGsI+hWzjOzT7CDcnEATkmgvI1cgQRXbBv7Qugpt2N3WieZkkv575K9o=
-  distribution: bdist_wheel sdist
-  on:
-    tags: true
-    python: '3.6'
+matrix:
+  include:
+    - stage: build
+      python: '3.7'
+      install:
+        - pip install -U pip setuptools
+        - pip install -e .[testing]
+      script:
+        - pytest -s -vv
+        - flake8
+        - mypy .
+    - stage: build
+      python: '3.8'
+      install:
+        - pip install -U pip setuptools
+        - pip install -e .[testing]
+      script:
+        - pytest -s -vv
+        - flake8
+        - mypy .
+    - stage: deploy
+      if: tag =~ ^[0-9]+\.[0-9]+\.[0-9]+
+      python: '3.7'
+      script: skip
+      install:
+        - pip install -U pip setuptools pyopenssl
+      deploy:
+        provider: pypi
+        username: eventbrite
+        password:
+           secure: SjdN3685Yq41etdyCmvq50abe9AbpG2gjmiYfuIQWjlCSmERHuSENiY4VbQ8CwxGeyIgSoaKHP2kzh+HMTnFYtJraSWV9K/R/M88obHiWpq9ouNH3lMqr2H+Da0/Q0v5OnMrD/qWmG2a6S1VLbazhDGSO9BhM+o6YeZp258YqvievrLSD+6Vjt/uGulmK4ZOiD2p3ImkYFTNiQrJ3OH6SmPGv7E2kJDExqcn+Ci27UvwAkOEB8avtwT3G0SMfjjqkyUEUmlgg4am4ESDVKeBgOBcQ4Bv3nNdSs/hC/SudHXFRHCcGGFvLvDWfj50+iCzq2BMy6Etb7+E+A8BtXj8nlO5efstYsSV0NwB3dhBcQhb23qJMVBalH0f8Qb/wu/Fynqofml27od5hL0fGc15xc6//Nc+HHXB6QIJ/66/kiZEA3x1mPwD25K1YHauwYTP9RsRKXfFgyy+qLMHqtL4I2rlZS1stfTo8RJzFUFx/R3SOltEU7pVMwrohK2Zukqag6KdUjvOmMSzO6kqLxvgC27+HSoPGOWHRyHNRXBnObuEU7IRqq+vuLDZEdk/Dz5FDTLRqx2j3woBnQyp/JmTNuqWTr6LVnYkQhVG/DlCc6QOPZ081geGGsI+hWzjOzT7CDcnEATkmgvI1cgQRXbBv7Qugpt2N3WieZkkv575K9o=
+        distributions: "sdist bdist_wheel"
+        on:
+          tags: true
