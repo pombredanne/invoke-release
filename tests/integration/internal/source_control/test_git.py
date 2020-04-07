@@ -1,9 +1,7 @@
 import json
 import os
-import pathlib
 import subprocess
 import sys
-import tempfile
 from typing import (
     Generator,
     Optional,
@@ -21,7 +19,6 @@ from invoke_release.internal.utils import get_tty
 
 from tests import (
     file_exists,
-    mkdir,
     patch_popen_args,
     read_file,
     write_file,
@@ -30,65 +27,15 @@ from tests.integration import GpgSetup
 
 
 @pytest.fixture(scope='module')
-def remote_repo() -> Generator[str, None, None]:
-    with tempfile.TemporaryDirectory(suffix='remote') as directory:
-        directory = str(pathlib.Path(directory).resolve().absolute())  # get rid of symlinks, if applicable
-
-        mkdir(directory, 'special_library')
-        directory = os.path.join(directory, 'special_library')
-
-        mkdir(directory, 'special_library')
-        write_file(directory, 'CHANGELOG.rst', 'Changelog\n=========\n')
-        write_file(directory, 'special_library/__init__.py', 'from special_library.version import __version__\n')
-        write_file(directory, 'special_library/version.py', "__version__ = '1.2.3'")
-
-        subprocess.check_call(['git', 'init'], cwd=directory, stdout=sys.stdout, stderr=sys.stderr)
-        subprocess.check_call(['git', 'add', '-A'], cwd=directory, stdout=sys.stdout, stderr=sys.stderr)
-        subprocess.check_call(
-            ['git', 'commit', '-m', 'Initial commit'],
-            cwd=directory,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-
-        yield directory
-
-        sys.stderr.write("Cleaning up 'remote' repository\n")
-        sys.stderr.flush()
+def remote_repo(remote_git_repo) -> Generator[str, None, None]:
+    # an alias for brevity
+    yield remote_git_repo
 
 
 @pytest.fixture(scope='module')
-def local_repo(remote_repo: str) -> Generator[str, None, None]:
-    with tempfile.TemporaryDirectory(suffix='local') as directory:
-        directory = str(pathlib.Path(directory).resolve().absolute())  # get rid of symlinks, if applicable
-
-        subprocess.check_call(
-            ['git', 'clone', f'file://{remote_repo}/.git'],
-            cwd=directory,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-
-        directory = os.path.join(directory, 'special_library')
-
-        subprocess.check_call(
-            ['git', 'config', '--local', 'user.email', 'nicholas@example.com'],
-            cwd=directory,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-
-        subprocess.check_call(
-            ['git', 'config', '--local', 'user.name', 'Nick Sample'],
-            cwd=directory,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-
-        yield directory
-
-        sys.stderr.write('Cleaning up local repository clone\n')
-        sys.stderr.flush()
+def local_repo(local_git_repo) -> Generator[str, None, None]:
+    # an alias for brevity
+    yield local_git_repo
 
 
 class TestGit:
@@ -101,34 +48,35 @@ class TestGit:
     def test_get_version(self, git: Git) -> None:
         assert git.get_version().startswith('git version ')
 
-    def test_get_root_directory(self, git: Git, local_repo: str, remote_repo: str):
+    def test_get_root_directory(self, git: Git, local_repo: str):
         with patch_popen_args(local_repo):
             assert git.get_root_directory() == local_repo
         with patch_popen_args(os.path.join(local_repo, 'special_library')):
             assert git.get_root_directory() == local_repo
 
-        with patch_popen_args(remote_repo):
-            assert git.get_root_directory() == remote_repo
-        with patch_popen_args(os.path.join(remote_repo, 'special_library')):
-            assert git.get_root_directory() == remote_repo
-
     def test_branches(self, git: Git, local_repo: str, remote_repo: str):
         with patch_popen_args(remote_repo):
             assert git.get_branch_name() == 'master'
-            git.create_branch('test_branches_create_remote_branch')
-            assert git.get_branch_name() == 'test_branches_create_remote_branch'
+            subprocess.check_call(
+                ['git', 'update-ref', 'refs/heads/test_branches_create_remote_branch', 'refs/heads/master'],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
 
         with patch_popen_args(local_repo):
-            commit_hash = git.get_last_commit_identifier()
-
             assert git.get_branch_name() == 'master'
+            commit_hash = git.get_last_commit_identifier()
+            assert git.pull_if_tracking_remote() is True
+
             git.create_branch('test_branches_create_local_branch')
             assert git.get_branch_name() == 'test_branches_create_local_branch'
+            assert git.pull_if_tracking_remote() is False
 
             assert git.branch_exists_remotely('test_branches_create_remote_branch') is True
             assert git.branch_exists_remotely('test_branches_create_local_branch') is False
 
             git.checkout_remote_branch('test_branches_create_remote_branch')
+            assert git.pull_if_tracking_remote() is True
 
             assert set(git.get_remote_branches_with_commit(commit_hash)) == {
                 'origin/master',
@@ -142,6 +90,7 @@ class TestGit:
                 'origin/test_branches_create_remote_branch',
                 'origin/test_branches_create_local_branch',
             }
+            assert git.pull_if_tracking_remote() is True
 
             git.checkout_item('master')
 
@@ -158,7 +107,6 @@ class TestGit:
 
     def test_tags(self, git: Git, local_repo: str, remote_repo: str):
         with patch_popen_args(remote_repo):
-            git.checkout_item('master')
             git.create_tag('test_tags_create_remote_tag', 'This is a message for the tag')
 
         with patch_popen_args(local_repo):
@@ -362,7 +310,6 @@ class TestGit:
                 git.delete_branch('test_revert_commit')
 
         with patch_popen_args(remote_repo):
-            git.checkout_item('master')
             git.delete_branch('test_revert_commit')
 
     def test_sign_commit(
@@ -484,7 +431,7 @@ class TestGit:
     def test_open_pull_request(self, git: Git, local_repo: str, remote_repo: str):
         previous_token = os.environ.pop('GITHUB_TOKEN', None)
 
-        remote_extract = f"{remote_repo.split('/')[-2]}/{remote_repo.split('/')[-1]}"
+        remote_extract = f"{remote_repo.split('/')[-2]}/{remote_repo.split('/')[-1]}".replace('.git', '')
 
         try:
             assert git.open_pull_request('Test Pull Request', 'master', 'branch_for_pull_request') is None

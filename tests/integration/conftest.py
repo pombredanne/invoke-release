@@ -12,8 +12,80 @@ from typing import (
 
 import pytest
 
-from tests import write_file
+from tests import (
+    mkdir,
+    write_file,
+)
 from tests.integration import GpgSetup
+
+
+@pytest.fixture(scope='module')
+def remote_git_repo() -> Generator[str, None, None]:
+    with tempfile.TemporaryDirectory(suffix='remote') as directory:
+        directory = str(pathlib.Path(directory).resolve().absolute())  # get rid of symlinks, if applicable
+
+        mkdir(directory, 'special_library.git')
+        directory = os.path.join(directory, 'special_library.git')
+
+        subprocess.check_call(['git', 'init', '--bare'], cwd=directory, stdout=sys.stdout, stderr=sys.stderr)
+
+        yield directory
+
+        sys.stderr.write("Cleaning up 'remote' repository\n")
+        sys.stderr.flush()
+
+
+@pytest.fixture(scope='module')
+def local_git_repo(remote_git_repo: str) -> Generator[str, None, None]:
+    with tempfile.TemporaryDirectory(suffix='local') as directory:
+        directory = str(pathlib.Path(directory).resolve().absolute())  # get rid of symlinks, if applicable
+
+        subprocess.check_call(
+            ['git', 'clone', f'file://{remote_git_repo}'],
+            cwd=directory,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+
+        directory = os.path.join(directory, 'special_library')
+
+        subprocess.check_call(
+            ['git', 'config', '--local', 'user.email', 'nicholas@example.com'],
+            cwd=directory,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+
+        subprocess.check_call(
+            ['git', 'config', '--local', 'user.name', 'Nick Sample'],
+            cwd=directory,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+
+        mkdir(directory, 'special_library')
+        write_file(directory, 'CHANGELOG.rst', 'Changelog\n=========\n')
+        write_file(directory, 'special_library/__init__.py', 'from special_library.version import __version__\n')
+        write_file(directory, 'special_library/version.py', "__version__ = '1.2.3'")
+
+        subprocess.check_call(['git', 'add', '-A'], cwd=directory, stdout=sys.stdout, stderr=sys.stderr)
+        subprocess.check_call(
+            ['git', 'commit', '-m', 'Initial commit'],
+            cwd=directory,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.check_call(
+            ['git', 'push', 'origin', 'master:master'],
+            cwd=directory,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+
+        yield directory
+
+        sys.stderr.write('Cleaning up local repository clone\n')
+        sys.stderr.flush()
 
 
 GPG_RE = re.compile('gpg: key (?P<key_id>[0-9A-F]{8,32}) ')

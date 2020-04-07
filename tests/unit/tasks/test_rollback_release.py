@@ -78,6 +78,7 @@ def test_master_pre_rollback_failed(
 
     tester.wait_for_finish()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -121,6 +122,7 @@ def test_not_master_exit_at_prompt(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -180,6 +182,7 @@ def test_not_master_continue_at_prompt_last_commit_not_release_commit(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -252,6 +255,7 @@ def test_release_on_multiple_remote_branches(
 
     tester.wait_for_finish()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -304,6 +308,7 @@ def test_release_on_inconsequential_remote_branch_exit_at_prompt(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -368,6 +373,7 @@ def test_release_on_no_remote_branch_continue_at_prompt(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -461,6 +467,7 @@ def test_release_on_master_remote_branch_continue_at_prompt(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
@@ -554,6 +561,7 @@ def test_release_on_master_remote_branch_do_not_revert_commit(
 
     prompt = tester.wait_for_prompt()
 
+    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
         'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
