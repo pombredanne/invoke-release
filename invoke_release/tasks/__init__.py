@@ -9,6 +9,7 @@ from invoke_release.tasks.version_task import version
 
 __all__ = (
     'branch',
+    'configure_release_parameters',
     'release',
     'rollback_release',
     'version',
