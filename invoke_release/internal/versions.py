@@ -187,5 +187,5 @@ def read_project_version(module_name: str, version_file_name: str, reload: bool 
 
     module = importlib.import_module(module_name)
     if reload:
-        importlib.reload(module)
+        module = importlib.reload(module)
     return module.__version__  # type: ignore

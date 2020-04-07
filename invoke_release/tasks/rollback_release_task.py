@@ -49,7 +49,7 @@ def rollback_release(_, verbose=False, no_stash=False):  # type: (str, bool, boo
 
     source.pull_if_tracking_remote()
 
-    project_version = read_project_version(config.module_name, config.version_file_name)
+    project_version = read_project_version(f'{config.module_name}.version', config.version_file_name)
 
     branch_name = source.get_branch_name()
     if branch_name != config.master_branch:
@@ -114,7 +114,7 @@ def rollback_release(_, verbose=False, no_stash=False):  # type: (str, bool, boo
             else:
                 io.standard_output('The commit was not {}.', 'reverted' if is_on_remote else 'deleted')
 
-            new_version = read_project_version(config.module_name, config.version_file_name, reload=True)
+            new_version = read_project_version(f'{config.module_name}.version', config.version_file_name, reload=True)
             post_rollback(context, project_version, new_version)
 
             io.standard_output('Release rollback is complete.')

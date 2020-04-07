@@ -80,7 +80,7 @@ def test_master_pre_rollback_failed(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_rollback.call_count == 1
@@ -124,7 +124,7 @@ def test_not_master_exit_at_prompt(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -184,7 +184,7 @@ def test_not_master_continue_at_prompt_last_commit_not_release_commit(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -257,7 +257,7 @@ def test_release_on_multiple_remote_branches(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -310,7 +310,7 @@ def test_release_on_inconsequential_remote_branch_exit_at_prompt(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -375,7 +375,7 @@ def test_release_on_no_remote_branch_continue_at_prompt(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -426,7 +426,7 @@ def test_release_on_no_remote_branch_continue_at_prompt(
     assert task_bootstrap.source.revert_commit.call_count == 0
     task_bootstrap.source.delete_last_local_commit.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
         reload=True,
     )
@@ -469,7 +469,7 @@ def test_release_on_master_remote_branch_continue_at_prompt(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -520,7 +520,7 @@ def test_release_on_master_remote_branch_continue_at_prompt(
     task_bootstrap.source.revert_commit.assert_called_once_with('def5678', 'master')
     assert task_bootstrap.source.delete_last_local_commit.call_count == 0
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
         reload=True,
     )
@@ -563,7 +563,7 @@ def test_release_on_master_remote_branch_do_not_revert_commit(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -614,7 +614,7 @@ def test_release_on_master_remote_branch_do_not_revert_commit(
     assert task_bootstrap.source.revert_commit.call_count == 0
     assert task_bootstrap.source.delete_last_local_commit.call_count == 0
     mock_read_project_version.assert_called_once_with(
-        'extra_library',
+        'extra_library.version',
         '/path/to/extra_library/extra_library/version.txt',
         reload=True,
     )

@@ -27,6 +27,7 @@ from invoke_release.errors import ReleaseExit
 
 
 __all__ = (
+    'InteractiveEditor',
     'InteractiveTester',
     'file_exists',
     'mkdir',
@@ -78,6 +79,31 @@ def patch_popen_args(cwd: str, env: Optional[Dict[str, str]] = None) -> Generato
         yield
     finally:
         subprocess.Popen.__init__ = original_popen_init  # type: ignore
+
+
+class InteractiveEditor:
+    def __init__(self):
+        self._open_event = threading.Event()
+        self._close_event = threading.Event()
+
+        self._file_name: str = ''
+
+    def open_editor(self, _, edit_file_name) -> None:
+        self._file_name = edit_file_name
+        self._open_event.set()
+        self._close_event.wait()
+
+    def wait_for_editor_open(self) -> str:
+        self._open_event.wait(timeout=3)
+
+        with open(self._file_name, 'rt', encoding='utf-8') as f:
+            return f.read()
+
+    def close_editor(self, save_contents: str) -> None:
+        with open(self._file_name, 'wt', encoding='utf-8') as f:
+            f.write(save_contents)
+
+        self._close_event.set()
 
 
 Prompt = NamedTuple(
