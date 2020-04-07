@@ -59,7 +59,11 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Topic :: Software Development',
-        'Topic :: Software Development :: Releases',
+        'Topic :: Software Development :: User Interfaces',
+        'Topic :: Software Development :: Version Control',
+        'Topic :: Software Development :: Version Control :: Git',
+        'Topic :: Security :: Cryptography',
+        'Topic :: Utilities',
     ],
     project_urls={
         'Documentation': 'https://invoke-release.readthedocs.io',
