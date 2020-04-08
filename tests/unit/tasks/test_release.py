@@ -1360,7 +1360,7 @@ def test_master_reject_suggested_version_then_exit(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('4.5.2', )
@@ -1522,7 +1522,7 @@ def test_master_accept_suggested_version_but_conflicts(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('4.6.0', )
