@@ -190,7 +190,7 @@ def test_invoke_release_1_3_0(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('1.3.0', )
@@ -320,7 +320,7 @@ def test_invoke_release_2_0_0_but_do_not_push(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('2.0.0', )
@@ -541,7 +541,7 @@ def test_invoke_release_2_0_0_try_again(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('2.0.0', )
@@ -784,7 +784,7 @@ def test_invoke_release_1_3_1(
     task_bootstrap.io.error_output_exit.assert_not_called()
 
     assert prompt.message == (
-        'According to the changelog message, the next version should be `{}`. '
+        'According to the changelog message, the next version should be {}. '
         'Do you want to proceed with the suggested version? (Y/n)'
     )
     assert prompt.args == ('1.3.1', )
