@@ -1,7 +1,5 @@
 import datetime
 import os
-import subprocess
-import sys
 import tempfile
 from typing import (
     Generator,
@@ -26,17 +24,13 @@ from invoke_release.plugins.base import ReleaseStatus
 # noinspection PyProtectedMember
 from invoke_release.tasks.release_task import (
     Changelog,
-    open_editor,
     prompt_for_changelog,
     release,
     write_to_changelog_file,
 )
 from invoke_release.version import __version__
 
-from tests import (
-    InteractiveEditor,
-    InteractiveTester,
-)
+from tests import InteractiveTester
 from tests.unit import TaskBootstrap
 
 
@@ -97,69 +91,6 @@ def mock_prompt_for_changelog() -> Generator[mock.MagicMock, None, None]:
 def mock_write_to_changelog_file() -> Generator[mock.MagicMock, None, None]:
     with mock.patch('invoke_release.tasks.release_task.write_to_changelog_file') as m:
         yield m
-
-
-def test_open_editor(task_context: TaskContext) -> None:
-    with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
-            mock.patch.dict(os.environ, clear=True):
-        open_editor(task_context, '/foo/bar.txt')
-
-    mock_check_call.assert_called_once_with(['vim', '/foo/bar.txt'], stdout=sys.stdout, stderr=sys.stderr)
-
-    with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
-            mock.patch.dict(os.environ, EDITOR='/bin/tiny --mode=dark', clear=True):
-        open_editor(task_context, '/baz/qux.txt')
-
-    mock_check_call.assert_called_once_with(
-        ['/bin/tiny', '--mode=dark', '/baz/qux.txt'],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-
-    with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
-            mock.patch.dict(
-                os.environ,
-                INVOKE_RELEASE_EDITOR='/custom/editor "-m light"',
-                EDITOR='/bin/tiny --mode=dark',
-                clear=True,
-            ):
-        open_editor(task_context, '/foo/qux.txt')
-
-    mock_check_call.assert_called_once_with(
-        ['/custom/editor', '-m light', '/foo/qux.txt'],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-
-    with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
-            mock.patch.dict(os.environ, clear=True):
-        mock_check_call.side_effect = OSError(12, 'Some strange problem')
-
-        with pytest.raises(ReleaseFailure) as context:
-            open_editor(task_context, '/foo/bar.txt')
-
-    mock_check_call.assert_called_once_with(['vim', '/foo/bar.txt'], stdout=sys.stdout, stderr=sys.stderr)
-    assert isinstance(context.value, ReleaseFailure)
-    assert 'due to error: Some strange problem (err 12)' in context.value.args[0]
-    assert context.value.args[0].endswith(
-        ' Try setting $INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to '
-        'Vim or another editor.'
-    )
-
-    with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
-            mock.patch.dict(os.environ, clear=True):
-        mock_check_call.side_effect = subprocess.CalledProcessError(57, ['foo'])
-
-        with pytest.raises(ReleaseFailure) as context:
-            open_editor(task_context, '/foo/bar.txt')
-
-    mock_check_call.assert_called_once_with(['vim', '/foo/bar.txt'], stdout=sys.stdout, stderr=sys.stderr)
-    assert isinstance(context.value, ReleaseFailure)
-    assert 'due to return code: 57' in context.value.args[0]
-    assert context.value.args[0].endswith(
-        ' Try setting $INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to '
-        'Vim or another editor.'
-    )
 
 
 def test_write_to_changelog_file(task_context: TaskContext, mock_config: mock.MagicMock) -> None:
@@ -491,10 +422,7 @@ def test_prompt_for_changelog_contains_built_up_edit_then_exit(task_bootstrap: T
         assert tester.release_exit is True
 
 
-def test_prompt_for_changelog_contains_built_up_edit_then_continue(
-    task_bootstrap: TaskBootstrap,
-    interactive_editor: InteractiveEditor,
-) -> None:
+def test_prompt_for_changelog_contains_built_up_edit_then_continue(task_bootstrap: TaskBootstrap) -> None:
     with tempfile.NamedTemporaryFile('wt', encoding='utf-8', suffix='CHANGELOG.rst') as tmp_file:
         tmp_file.write("""Changelog
 =========
@@ -560,12 +488,30 @@ def test_prompt_for_changelog_contains_built_up_edit_then_continue(
         assert prompt.args == ()
         assert prompt.kwargs == {'also': ' also', 'y_n': 'y/N'}
 
-        tester.respond_to_prompt('')
+        contents = mock.MagicMock()
+        with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
+                mock.patch.dict(os.environ, clear=True):
+            def editor(cmd, **__):
+                with open(cmd[-1], 'rt', encoding='utf-8') as f:
+                    contents.value = f.read()
 
-        contents = interactive_editor.wait_for_editor_open()
+                lines = contents.value.split('\n')
+                index = lines.index('')
+                lines.insert(index, '- An added item')
+                lines.insert(index + 1, '- [MINOR] One more added item')
+
+                with open(cmd[-1], 'wt', encoding='utf-8') as f:
+                    for line in lines:
+                        f.write(f'{line}\n')
+
+            mock_check_call.side_effect = editor
+
+            tester.respond_to_prompt('')
+
+            tester.wait_for_finish()
 
         assert task_bootstrap.source.gather_commit_messages_since_last_release.call_count == 0
-        assert contents == """- Some existing change
+        assert contents.value == """- Some existing change
 - Another built-up change
 - Include all the changes
 
@@ -576,20 +522,9 @@ def test_prompt_for_changelog_contains_built_up_edit_then_continue(
 # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
 """
 
-        interactive_editor.close_editor("""- Some existing change
-- Another built-up change
-- Include all the changes
-- An added item
-- [MINOR] One more added item
-
-# Enter your changelog message above this comment, then save and close editor when finished.
-# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-# Leave it blank (delete all existing contents) to release with no changelog details.
-# All lines starting with "#" are comments and ignored.
-# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-""")
-
-        tester.wait_for_finish()
+        assert mock_check_call.call_count == 1
+        assert mock_check_call.call_args[0][0][0] == 'vim'
+        assert len(mock_check_call.call_args[0][0]) == 2
 
         changelog = tester.return_value
         assert isinstance(changelog, Changelog)
@@ -605,10 +540,7 @@ def test_prompt_for_changelog_contains_built_up_edit_then_continue(
         ]
 
 
-def test_prompt_for_changelog_contains_built_up_edit_then_gather_and_continue(
-    task_bootstrap: TaskBootstrap,
-    interactive_editor: InteractiveEditor,
-) -> None:
+def test_prompt_for_changelog_contains_built_up_edit_then_gather_and_continue(task_bootstrap: TaskBootstrap) -> None:
     with tempfile.NamedTemporaryFile('wt', encoding='utf-8', suffix='CHANGELOG.rst') as tmp_file:
         tmp_file.write("""Changelog
 =========
@@ -679,12 +611,30 @@ def test_prompt_for_changelog_contains_built_up_edit_then_gather_and_continue(
             '[MAJOR] This is another gathered commit message',
         ]
 
-        tester.respond_to_prompt('y')
+        contents = mock.MagicMock()
+        with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
+                mock.patch.dict(os.environ, EDITOR='/special/vi --with-arg', clear=True):
+            def editor(cmd, **__):
+                with open(cmd[-1], 'rt', encoding='utf-8') as f:
+                    contents.value = f.read()
 
-        contents = interactive_editor.wait_for_editor_open()
+                lines = contents.value.split('\n')
+                index = lines.index('')
+                lines.insert(index, '- An added item')
+                lines.insert(index + 1, '- [MINOR] One more added item')
+
+                with open(cmd[-1], 'wt', encoding='utf-8') as f:
+                    for line in lines:
+                        f.write(f'{line}\n')
+
+            mock_check_call.side_effect = editor
+
+            tester.respond_to_prompt('y')
+
+            tester.wait_for_finish()
 
         task_bootstrap.source.gather_commit_messages_since_last_release.assert_called_once_with()
-        assert contents == """- [PATCH] This is a commit message
+        assert contents.value == """- [PATCH] This is a commit message
 - [MAJOR] This is another gathered commit message
 - Some existing change
 - Another built-up change
@@ -697,22 +647,10 @@ def test_prompt_for_changelog_contains_built_up_edit_then_gather_and_continue(
 # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
 """
 
-        interactive_editor.close_editor("""- [PATCH] This is a commit message
-- [MAJOR] This is another gathered commit message
-- Some existing change
-- Another built-up change
-- Include all the changes
-- An added item
-- [MINOR] One more added item
-
-# Enter your changelog message above this comment, then save and close editor when finished.
-# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-# Leave it blank (delete all existing contents) to release with no changelog details.
-# All lines starting with "#" are comments and ignored.
-# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-""")
-
-        tester.wait_for_finish()
+        assert mock_check_call.call_count == 1
+        assert mock_check_call.call_args[0][0][0] == '/special/vi'
+        assert mock_check_call.call_args[0][0][1] == '--with-arg'
+        assert len(mock_check_call.call_args[0][0]) == 3
 
         changelog = tester.return_value
         assert isinstance(changelog, Changelog)
@@ -729,10 +667,7 @@ def test_prompt_for_changelog_contains_built_up_edit_then_gather_and_continue(
         ]
 
 
-def test_prompt_for_changelog_contains_built_up_new_then_continue(
-    task_bootstrap: TaskBootstrap,
-    interactive_editor: InteractiveEditor,
-) -> None:
+def test_prompt_for_changelog_contains_built_up_new_then_continue(task_bootstrap: TaskBootstrap) -> None:
     with tempfile.NamedTemporaryFile('wt', encoding='utf-8', suffix='CHANGELOG.rst') as tmp_file:
         tmp_file.write("""=========
 Changelog
@@ -799,12 +734,30 @@ Changelog
         assert prompt.args == ()
         assert prompt.kwargs == {'also': '', 'y_n': 'Y/n'}
 
-        tester.respond_to_prompt('n')
+        contents = mock.MagicMock()
+        with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
+                mock.patch.dict(os.environ, clear=True):
+            def editor(cmd, **__):
+                with open(cmd[-1], 'rt', encoding='utf-8') as f:
+                    contents.value = f.read()
 
-        contents = interactive_editor.wait_for_editor_open()
+                lines = contents.value.split('\n')
+                index = lines.index('')
+                lines.insert(index, '- An added item')
+                lines.insert(index + 1, '- [MINOR] One more added item')
+
+                with open(cmd[-1], 'wt', encoding='utf-8') as f:
+                    for line in lines:
+                        f.write(f'{line}\n')
+
+            mock_check_call.side_effect = editor
+
+            tester.respond_to_prompt('n')
+
+            tester.wait_for_finish()
 
         assert task_bootstrap.source.gather_commit_messages_since_last_release.call_count == 0
-        assert contents == """
+        assert contents.value == """
 # Enter your changelog message above this comment, then save and close editor when finished.
 # Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
 # Leave it blank (delete all existing contents) to release with no changelog details.
@@ -812,17 +765,9 @@ Changelog
 # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
 """
 
-        interactive_editor.close_editor("""- An added item
-- [MINOR] One more added item
-
-# Enter your changelog message above this comment, then save and close editor when finished.
-# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-# Leave it blank (delete all existing contents) to release with no changelog details.
-# All lines starting with "#" are comments and ignored.
-# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-""")
-
-        tester.wait_for_finish()
+        assert mock_check_call.call_count == 1
+        assert mock_check_call.call_args[0][0][0] == 'vim'
+        assert len(mock_check_call.call_args[0][0]) == 2
 
         changelog = tester.return_value
         assert isinstance(changelog, Changelog)
@@ -837,10 +782,7 @@ Changelog
         ]
 
 
-def test_prompt_for_changelog_contains_built_up_new_then_gather_and_continue(
-    task_bootstrap: TaskBootstrap,
-    interactive_editor: InteractiveEditor,
-) -> None:
+def test_prompt_for_changelog_contains_built_up_new_then_gather_and_continue(task_bootstrap: TaskBootstrap) -> None:
     with tempfile.NamedTemporaryFile('wt', encoding='utf-8', suffix='CHANGELOG.rst') as tmp_file:
         tmp_file.write("""Changelog
 =========
@@ -911,12 +853,31 @@ def test_prompt_for_changelog_contains_built_up_new_then_gather_and_continue(
             '[MAJOR] This is another gathered commit message',
         ]
 
-        tester.respond_to_prompt('')
+        contents = mock.MagicMock()
+        with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
+                mock.patch.dict(os.environ, clear=True):
+            def editor(cmd, **__):
+                with open(cmd[-1], 'rt', encoding='utf-8') as f:
+                    contents.value = f.read()
 
-        contents = interactive_editor.wait_for_editor_open()
+                lines = contents.value.split('\n')
+                index = lines.index('')
+                lines.insert(index, '- An added item')
+                lines.insert(index + 1, '- [MINOR] One more added item')
+                lines.pop(index + 2)
+
+                with open(cmd[-1], 'wt', encoding='utf-8') as f:
+                    for line in lines:
+                        f.write(f'\n{line}')
+
+            mock_check_call.side_effect = editor
+
+            tester.respond_to_prompt('')
+
+            tester.wait_for_finish()
 
         task_bootstrap.source.gather_commit_messages_since_last_release.assert_called_once_with()
-        assert contents == """- [PATCH] This is a commit message
+        assert contents.value == """- [PATCH] This is a commit message
 - [MAJOR] This is another gathered commit message
 
 # Enter your changelog message above this comment, then save and close editor when finished.
@@ -926,18 +887,9 @@ def test_prompt_for_changelog_contains_built_up_new_then_gather_and_continue(
 # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
 """
 
-        interactive_editor.close_editor("""- [PATCH] This is a commit message
-- [MAJOR] This is another gathered commit message
-- An added item
-- [MINOR] One more added item
-# Enter your changelog message above this comment, then save and close editor when finished.
-# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-# Leave it blank (delete all existing contents) to release with no changelog details.
-# All lines starting with "#" are comments and ignored.
-# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-""")
-
-        tester.wait_for_finish()
+        assert mock_check_call.call_count == 1
+        assert mock_check_call.call_args[0][0][0] == 'vim'
+        assert len(mock_check_call.call_args[0][0]) == 2
 
         changelog = tester.return_value
         assert isinstance(changelog, Changelog)
@@ -953,10 +905,7 @@ def test_prompt_for_changelog_contains_built_up_new_then_gather_and_continue(
         ]
 
 
-def test_prompt_for_changelog_no_built_up_new_then_gather_and_continue(
-    task_bootstrap: TaskBootstrap,
-    interactive_editor: InteractiveEditor,
-) -> None:
+def test_prompt_for_changelog_no_built_up_new_then_gather_and_continue(task_bootstrap: TaskBootstrap) -> None:
     with tempfile.NamedTemporaryFile('wt', encoding='utf-8', suffix='CHANGELOG.rst') as tmp_file:
         tmp_file.write("""Changelog
 =========
@@ -1012,12 +961,30 @@ def test_prompt_for_changelog_no_built_up_new_then_gather_and_continue(
             '[MAJOR] This is another gathered commit message',
         ]
 
-        tester.respond_to_prompt('')
+        contents = mock.MagicMock()
+        with mock.patch('invoke_release.tasks.release_task.subprocess.check_call') as mock_check_call, \
+                mock.patch.dict(os.environ, clear=True):
+            def editor(cmd, **__):
+                with open(cmd[-1], 'rt', encoding='utf-8') as f:
+                    contents.value = f.read()
 
-        contents = interactive_editor.wait_for_editor_open()
+                lines = contents.value.split('\n')
+                index = lines.index('')
+                lines.insert(index, '- An added item')
+                lines.insert(index + 1, '- [MINOR] One more added item')
+
+                with open(cmd[-1], 'wt', encoding='utf-8') as f:
+                    for line in lines:
+                        f.write(f'{line}\n')
+
+            mock_check_call.side_effect = editor
+
+            tester.respond_to_prompt('')
+
+            tester.wait_for_finish()
 
         task_bootstrap.source.gather_commit_messages_since_last_release.assert_called_once_with()
-        assert contents == """- [PATCH] This is a commit message
+        assert contents.value == """- [PATCH] This is a commit message
 - [MAJOR] This is another gathered commit message
 
 # Enter your changelog message above this comment, then save and close editor when finished.
@@ -1027,20 +994,9 @@ def test_prompt_for_changelog_no_built_up_new_then_gather_and_continue(
 # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
 """
 
-        interactive_editor.close_editor("""
-- [PATCH] This is a commit message
-- [MAJOR] This is another gathered commit message
-- An added item
-- [MINOR] One more added item
-
-# Enter your changelog message above this comment, then save and close editor when finished.
-# Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-# Leave it blank (delete all existing contents) to release with no changelog details.
-# All lines starting with "#" are comments and ignored.
-# As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-""")
-
-        tester.wait_for_finish()
+        assert mock_check_call.call_count == 1
+        assert mock_check_call.call_args[0][0][0] == 'vim'
+        assert len(mock_check_call.call_args[0][0]) == 2
 
         changelog = tester.return_value
         assert isinstance(changelog, Changelog)
@@ -1103,7 +1059,7 @@ def test_master_pre_release_failed(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1149,7 +1105,7 @@ def test_not_master_not_version_branch(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 0
@@ -1201,7 +1157,7 @@ def test_not_master_but_is_version_branch_cancel(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 0
@@ -1263,7 +1219,7 @@ def test_not_master_but_is_version_branch_accept_but_error_during_prompt(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 0
@@ -1342,7 +1298,7 @@ def test_master_reject_suggested_version_then_exit(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1431,7 +1387,7 @@ def test_master_no_suggested_version_then_exit(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1504,7 +1460,7 @@ def test_master_accept_suggested_version_but_conflicts(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1579,7 +1535,7 @@ def test_master_no_suggested_version_enter_version_but_conflicts(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1654,7 +1610,7 @@ def test_master_cancel_on_prompt_to_commit_changes(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     assert mock_pre_release.call_count == 1
@@ -1742,7 +1698,7 @@ def test_master_pre_commit_hook_failure(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -1840,7 +1796,7 @@ def test_master_pre_push_hook_failure(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -1953,7 +1909,7 @@ def test_master_use_pull_request_pre_push_hook_failure(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -2066,7 +2022,7 @@ def test_master_prompt_to_push_roll_back(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -2208,7 +2164,7 @@ def test_master_prompt_to_push_do_not_push(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -2359,7 +2315,7 @@ def test_master_prompt_to_push_do_not_push_no_tag(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -2498,12 +2454,9 @@ def test_master_prompt_to_push_accept(
 
     prompt = tester.wait_for_prompt()
 
-    assert task_bootstrap.source_constructor.call_count == 1
-    context: TaskContext = task_bootstrap.source_constructor.call_args[0][0]
-
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -2552,344 +2505,9 @@ def test_master_prompt_to_push_accept(
     task_bootstrap.io.error_output.assert_not_called()
     task_bootstrap.io.error_output_exit.assert_not_called()
 
-    assert context.use_gpg is False
-    assert context.gpg_alternate_id is None
-
     assert task_bootstrap.source.create_branch.call_count == 0
     task_bootstrap.source.commit.assert_called_once_with(
         ['/path/to/extra_library/extra_library/version.txt', '/path/to/extra_library/CHANGELOG.rst'],
-        """Released My Extra Library version 4.6.0
-
-Changelog Details:
-- Message 1
-- Message 2
-""",
-    )
-    task_bootstrap.source.create_tag.assert_called_once_with(
-        '4.6.0',
-        """Released My Extra Library version 4.6.0
-
-Changelog Details:
-- Message 1
-- Message 2
-""",
-    )
-    assert task_bootstrap.source.reset_pending_changes.call_count == 0
-    assert task_bootstrap.source.delete_last_local_commit.call_count == 0
-    assert task_bootstrap.source.checkout_item.call_count == 0
-    assert task_bootstrap.source.delete_branch.call_count == 0
-    assert task_bootstrap.source.delete_tag_locally.call_count == 0
-
-    assert prompt.message == 'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):'
-    assert prompt.args == ('master', )
-    assert prompt.kwargs == {}
-
-    tester.respond_to_prompt('y')
-
-    tester.wait_for_finish()
-
-    task_bootstrap.source.push.assert_has_calls([
-        mock.call('master'),
-        mock.call('4.6.0', ItemType.TAG)
-    ], any_order=False)
-    assert task_bootstrap.source.delete_last_local_commit.call_count == 0
-    assert task_bootstrap.source.checkout_item.call_count == 0
-    assert task_bootstrap.source.delete_branch.call_count == 0
-    assert task_bootstrap.source.delete_tag_locally.call_count == 0
-
-    assert mock_post_release.call_count == 1
-    assert mock_post_release.call_args[0][1:] == ('4.5.1', '4.6.0', ReleaseStatus.PUSHED)
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Release process is complete.'),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-
-def test_master_prompt_to_push_accept_with_gpg(
-    task_bootstrap: TaskBootstrap,
-    mock_read_project_version: mock.MagicMock,
-    mock_prompt_for_changelog: mock.MagicMock,
-    mock_update_version_file: mock.MagicMock,
-    mock_write_to_changelog_file: mock.MagicMock,
-    mock_get_extra_files_to_commit: mock.MagicMock,
-    mock_post_release: mock.MagicMock,
-) -> None:
-    task_bootstrap.config.is_configured = True
-    task_bootstrap.config.module_name = 'extra_library'
-    task_bootstrap.config.display_name = 'My Extra Library'
-    task_bootstrap.config.release_message_template = 'Released My Extra Library version {}'
-    task_bootstrap.config.version_file_name = '/path/to/extra_library/extra_library/version.txt'
-    task_bootstrap.config.changelog_file_name = '/path/to/extra_library/CHANGELOG.rst'
-    task_bootstrap.config.master_branch = 'master'
-    task_bootstrap.config.gpg_command = '/usr/bin/gpg2'
-    task_bootstrap.config.use_pull_request = False
-    task_bootstrap.config.use_tag = True
-
-    tester = InteractiveTester(
-        task_bootstrap.io,
-        release,
-        [task_bootstrap.source, mock_read_project_version],
-        verbose=True,
-        no_stash=False,
-    )
-
-    mock_read_project_version.return_value = '4.5.1'
-    task_bootstrap.source.get_branch_name.return_value = 'master'
-
-    changelog = Changelog(
-        ['header1\n', 'header2\n'],
-        ['- Message 1\n', '- Message 2\n'],
-        ['footer1\n', 'footer2\n'],
-    )
-    mock_prompt_for_changelog.return_value = changelog
-
-    tester.start()
-
-    prompt = tester.wait_for_prompt()
-
-    assert task_bootstrap.source_constructor.call_count == 1
-    context: TaskContext = task_bootstrap.source_constructor.call_args[0][0]
-
-    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
-    mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
-        '/path/to/extra_library/extra_library/version.txt',
-    )
-    task_bootstrap.source.get_branch_name.assert_called_once_with()
-    assert mock_prompt_for_changelog.call_count == 1
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Invoke Release {}', __version__),
-        mock.call('Releasing {}...', 'My Extra Library'),
-        mock.call('Current version: {}', '4.5.1'),
-        mock.call("First let's compile the changelog, and then we'll select a version to release."),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-    assert prompt.message == 'Enter a new version (or "exit"):'
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    task_bootstrap.source.tag_exists_locally.return_value = False
-    task_bootstrap.source.tag_exists_remotely.return_value = False
-
-    tester.respond_to_prompt('4.6.0')
-
-    prompt = tester.wait_for_prompt()
-
-    assert prompt.message == (
-        'The changes to release files have not yet been committed. Are you ready to commit them? (Y/n):'
-    )
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    tester.respond_to_prompt('y')
-
-    prompt = tester.wait_for_prompt()
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Releasing {module} version: {version}', module='My Extra Library', version='4.6.0'),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-    assert prompt.message == (
-        'You have GPG installed on your system and your source control supports signing commits and tags.\n'
-        'Would you like to use GPG to sign this release with the key matching your committer email? '
-        '(y/N/[alternative key ID]):'
-    )
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    mock_get_extra_files_to_commit.return_value = ['README.rst']
-
-    assert context.use_gpg is False
-    assert context.gpg_alternate_id is None
-
-    tester.respond_to_prompt('y')
-
-    prompt = tester.wait_for_prompt()
-
-    assert context.use_gpg is True
-    assert context.gpg_alternate_id is None
-
-    assert mock_update_version_file.call_count == 1
-    assert mock_update_version_file.call_args[0][1:] == ('4.6.0', [4, 6, 0], '-')
-    assert mock_write_to_changelog_file.call_count == 1
-    assert mock_write_to_changelog_file.call_args[0][1:] == ('4.6.0', changelog)
-
-    assert task_bootstrap.source.create_branch.call_count == 0
-    task_bootstrap.source.commit.assert_called_once_with(
-        ['/path/to/extra_library/extra_library/version.txt', '/path/to/extra_library/CHANGELOG.rst', 'README.rst'],
-        """Released My Extra Library version 4.6.0
-
-Changelog Details:
-- Message 1
-- Message 2
-""",
-    )
-    task_bootstrap.source.create_tag.assert_called_once_with(
-        '4.6.0',
-        """Released My Extra Library version 4.6.0
-
-Changelog Details:
-- Message 1
-- Message 2
-""",
-    )
-    assert task_bootstrap.source.reset_pending_changes.call_count == 0
-    assert task_bootstrap.source.delete_last_local_commit.call_count == 0
-    assert task_bootstrap.source.checkout_item.call_count == 0
-    assert task_bootstrap.source.delete_branch.call_count == 0
-    assert task_bootstrap.source.delete_tag_locally.call_count == 0
-
-    assert prompt.message == 'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):'
-    assert prompt.args == ('master', )
-    assert prompt.kwargs == {}
-
-    tester.respond_to_prompt('y')
-
-    tester.wait_for_finish()
-
-    task_bootstrap.source.push.assert_has_calls([
-        mock.call('master'),
-        mock.call('4.6.0', ItemType.TAG)
-    ], any_order=False)
-    assert task_bootstrap.source.delete_last_local_commit.call_count == 0
-    assert task_bootstrap.source.checkout_item.call_count == 0
-    assert task_bootstrap.source.delete_branch.call_count == 0
-    assert task_bootstrap.source.delete_tag_locally.call_count == 0
-
-    assert mock_post_release.call_count == 1
-    assert mock_post_release.call_args[0][1:] == ('4.5.1', '4.6.0', ReleaseStatus.PUSHED)
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Release process is complete.'),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-
-def test_master_prompt_to_push_accept_with_gpg_alternate_id(
-    task_bootstrap: TaskBootstrap,
-    mock_read_project_version: mock.MagicMock,
-    mock_prompt_for_changelog: mock.MagicMock,
-    mock_update_version_file: mock.MagicMock,
-    mock_write_to_changelog_file: mock.MagicMock,
-    mock_get_extra_files_to_commit: mock.MagicMock,
-    mock_post_release: mock.MagicMock,
-) -> None:
-    task_bootstrap.config.is_configured = True
-    task_bootstrap.config.module_name = 'extra_library'
-    task_bootstrap.config.display_name = 'My Extra Library'
-    task_bootstrap.config.release_message_template = 'Released My Extra Library version {}'
-    task_bootstrap.config.version_file_name = '/path/to/extra_library/extra_library/version.txt'
-    task_bootstrap.config.changelog_file_name = '/path/to/extra_library/CHANGELOG.rst'
-    task_bootstrap.config.master_branch = 'master'
-    task_bootstrap.config.gpg_command = '/usr/bin/gpg2'
-    task_bootstrap.config.use_pull_request = False
-    task_bootstrap.config.use_tag = True
-
-    tester = InteractiveTester(
-        task_bootstrap.io,
-        release,
-        [task_bootstrap.source, mock_read_project_version],
-        verbose=True,
-        no_stash=False,
-    )
-
-    mock_read_project_version.return_value = '4.5.1'
-    task_bootstrap.source.get_branch_name.return_value = 'master'
-
-    changelog = Changelog(
-        ['header1\n', 'header2\n'],
-        ['- Message 1\n', '- Message 2\n'],
-        ['footer1\n', 'footer2\n'],
-    )
-    mock_prompt_for_changelog.return_value = changelog
-
-    tester.start()
-
-    prompt = tester.wait_for_prompt()
-
-    assert task_bootstrap.source_constructor.call_count == 1
-    context: TaskContext = task_bootstrap.source_constructor.call_args[0][0]
-
-    task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
-    mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
-        '/path/to/extra_library/extra_library/version.txt',
-    )
-    task_bootstrap.source.get_branch_name.assert_called_once_with()
-    assert mock_prompt_for_changelog.call_count == 1
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Invoke Release {}', __version__),
-        mock.call('Releasing {}...', 'My Extra Library'),
-        mock.call('Current version: {}', '4.5.1'),
-        mock.call("First let's compile the changelog, and then we'll select a version to release."),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-    assert prompt.message == 'Enter a new version (or "exit"):'
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    task_bootstrap.source.tag_exists_locally.return_value = False
-    task_bootstrap.source.tag_exists_remotely.return_value = False
-
-    tester.respond_to_prompt('4.6.0')
-
-    prompt = tester.wait_for_prompt()
-
-    assert prompt.message == (
-        'The changes to release files have not yet been committed. Are you ready to commit them? (Y/n):'
-    )
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    tester.respond_to_prompt('y')
-
-    prompt = tester.wait_for_prompt()
-
-    task_bootstrap.io.standard_output.assert_has_calls([
-        mock.call('Releasing {module} version: {version}', module='My Extra Library', version='4.6.0'),
-    ], any_order=False)
-    task_bootstrap.io.error_output.assert_not_called()
-    task_bootstrap.io.error_output_exit.assert_not_called()
-
-    assert prompt.message == (
-        'You have GPG installed on your system and your source control supports signing commits and tags.\n'
-        'Would you like to use GPG to sign this release with the key matching your committer email? '
-        '(y/N/[alternative key ID]):'
-    )
-    assert prompt.args == ()
-    assert prompt.kwargs == {}
-
-    mock_get_extra_files_to_commit.return_value = ['README.rst']
-
-    assert context.use_gpg is False
-    assert context.gpg_alternate_id is None
-
-    tester.respond_to_prompt('A8D72EF139CC0013')
-
-    prompt = tester.wait_for_prompt()
-
-    assert context.use_gpg is True
-    assert context.gpg_alternate_id == 'A8D72EF139CC0013'
-
-    assert mock_update_version_file.call_count == 1
-    assert mock_update_version_file.call_args[0][1:] == ('4.6.0', [4, 6, 0], '-')
-    assert mock_write_to_changelog_file.call_count == 1
-    assert mock_write_to_changelog_file.call_args[0][1:] == ('4.6.0', changelog)
-
-    assert task_bootstrap.source.create_branch.call_count == 0
-    task_bootstrap.source.commit.assert_called_once_with(
-        ['/path/to/extra_library/extra_library/version.txt', '/path/to/extra_library/CHANGELOG.rst', 'README.rst'],
         """Released My Extra Library version 4.6.0
 
 Changelog Details:
@@ -2983,7 +2601,7 @@ def test_master_prompt_to_push_accept_no_tag(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -3117,7 +2735,7 @@ def test_master_prompt_to_push_accept_no_tag_with_pull_request(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()
@@ -3258,7 +2876,7 @@ def test_master_prompt_to_push_accept_no_tag_with_pull_request_which_failed(
 
     task_bootstrap.source.pull_if_tracking_remote.assert_called_once_with()
     mock_read_project_version.assert_called_once_with(
-        'extra_library.version',
+        'extra_library',
         '/path/to/extra_library/extra_library/version.txt',
     )
     task_bootstrap.source.get_branch_name.assert_called_once_with()

@@ -112,33 +112,6 @@ def check_branch(
             raise ReleaseExit()
 
 
-def open_editor(context: TaskContext, edit_file_name: str) -> None:
-    editor = os.environ.get('INVOKE_RELEASE_EDITOR', os.environ.get('EDITOR', 'vim'))
-    context.io.verbose_output('Opening editor {} to edit changelog.', editor)
-    try:
-        subprocess.check_call(
-            shlex.split(editor) + [edit_file_name],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-    except (subprocess.CalledProcessError, OSError) as e:
-        args: Dict[str, Any] = {'editor': editor}
-        if isinstance(e, OSError):
-            message = 'Failed to open changelog editor `{editor}` due to error: {error} (err {error_code}).'
-            args.update(error=e.strerror, error_code=e.errno)
-        else:
-            message = 'Failed to open changelog editor `{editor}` due to return code: {return_code}.'
-            args.update(return_code=e.returncode)
-
-        message += (
-            ' Try setting $INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to '
-            'Vim or another editor.'
-        )
-
-        raise ReleaseFailure(message.format(**args))
-    context.io.verbose_output('User has closed editor')
-
-
 def prompt_for_changelog(context: TaskContext, source: SourceControl) -> Changelog:
     built_up_changelog = []
     changelog_header = []
@@ -235,7 +208,30 @@ def prompt_for_changelog(context: TaskContext, source: SourceControl) -> Changel
             tf.flush()
             context.io.verbose_output('Wrote existing changelog contents and instructions to temporary file.')
 
-            open_editor(context, tf.name)
+            editor = os.environ.get('INVOKE_RELEASE_EDITOR', os.environ.get('EDITOR', 'vim'))
+            context.io.verbose_output('Opening editor {} to edit changelog.', editor)
+            try:
+                subprocess.check_call(
+                    shlex.split(editor) + [tf.name],
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            except (subprocess.CalledProcessError, OSError) as e:
+                args: Dict[str, Any] = {'editor': editor}
+                if isinstance(e, OSError):
+                    message = 'Failed to open changelog editor `{editor}` due to error: {error} (err {error_code}).'
+                    args.update(error=e.strerror, error_code=e.errno)
+                else:
+                    message = 'Failed to open changelog editor `{editor}` due to return code: {return_code}.'
+                    args.update(return_code=e.returncode)
+
+                message += (
+                    ' Try setting $INVOKE_RELEASE_EDITOR or $EDITOR in your shell profile to the full path to '
+                    'Vim or another editor.'
+                )
+
+                raise ReleaseFailure(message.format(**args))
+            context.io.verbose_output('User has closed editor')
 
             with open(tf.name, 'rt', encoding='utf8') as read:
                 first_line = True
@@ -303,7 +299,7 @@ def release(_, verbose=False, no_stash=False):
 
     source.pull_if_tracking_remote()
 
-    project_version = read_project_version(f'{config.module_name}.version', config.version_file_name)
+    project_version = read_project_version(config.module_name, config.version_file_name)
 
     branch_name = source.get_branch_name()
 

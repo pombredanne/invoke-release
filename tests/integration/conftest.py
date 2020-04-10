@@ -31,8 +31,8 @@ def remote_git_repo() -> Generator[str, None, None]:
 
         yield directory
 
-        sys.stdout.write("Cleaning up 'remote' repository\n")
-        sys.stdout.flush()
+        sys.stderr.write("Cleaning up 'remote' repository\n")
+        sys.stderr.flush()
 
 
 @pytest.fixture(scope='module')
@@ -67,25 +67,6 @@ def local_git_repo(remote_git_repo: str) -> Generator[str, None, None]:
         write_file(directory, 'CHANGELOG.rst', 'Changelog\n=========\n')
         write_file(directory, 'special_library/__init__.py', 'from special_library.version import __version__\n')
         write_file(directory, 'special_library/version.py', "__version__ = '1.2.3'")
-        write_file(directory, '.version', '1.2.3')
-        write_file(directory, '.gitignore', """/build
-docs/_build
-/dist
-*.egg-info
-*.pyc
-*.eggs
-__pycache__
-.cache
-*.swp
-.idea
-*.iml
-.coverage
-coverage.xml
-pytests.xml
-.pytest_cache
-.mypy_cache
-.tox
-""")
 
         subprocess.check_call(['git', 'add', '-A'], cwd=directory, stdout=sys.stdout, stderr=sys.stderr)
         subprocess.check_call(
@@ -103,8 +84,8 @@ pytests.xml
 
         yield directory
 
-        sys.stdout.write('Cleaning up local repository clone\n')
-        sys.stdout.flush()
+        sys.stderr.write('Cleaning up local repository clone\n')
+        sys.stderr.flush()
 
 
 GPG_RE = re.compile('gpg: key (?P<key_id>[0-9A-F]{8,32}) ')
@@ -241,5 +222,5 @@ Expire-Date: 1d
 
         yield GpgSetup(gpg, directory, implicit_key, explicit_key)
 
-        sys.stdout.write('Cleaning up GPG keys\n')
-        sys.stdout.flush()
+        sys.stderr.write('Cleaning up GPG keys\n')
+        sys.stderr.flush()

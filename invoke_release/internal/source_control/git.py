@@ -408,7 +408,7 @@ class Git(SourceControl):
         output = subprocess.check_output(command, stderr=sys.stderr).decode('utf8')
 
         messages = []
-        for message in reversed(output.splitlines()):
+        for message in output.splitlines():
             if not message.strip().startswith('Merge pull request #'):
                 messages.append(message.strip())
 

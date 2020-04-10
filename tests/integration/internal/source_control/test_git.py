@@ -406,8 +406,8 @@ class TestGit:
                 git.commit(['CHANGELOG.rst'], '[MINOR] Another cool commit\n\nOnly titles are returned, not messages.')
 
                 assert git.gather_commit_messages_since_last_release() == [
-                    'This is the third commit title',
                     '[MINOR] Another cool commit',
+                    'This is the third commit title',
                 ]
             finally:
                 git.checkout_item('master')

@@ -15,5 +15,4 @@ def task_bootstrap(module_being_tested: str) -> Generator[TaskBootstrap, None, N
             mock_io.return_value,
             mock_config.source_control_class.return_value,
             mock_io,
-            mock_config.source_control_class,
         )

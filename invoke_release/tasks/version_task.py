@@ -61,7 +61,7 @@ def version(_, verbose=False):  # type: (str, bool) -> None
         io.error_output(error)
 
     try:
-        project_version = read_project_version(f'{config.module_name}.version', config.version_file_name)
+        project_version = read_project_version(config.module_name, config.version_file_name)
     except Exception as e:
         project_version = f'[Error: Could not read version: {e!r}]'
 
