@@ -1,10 +1,6 @@
 Changelog
 =========
 
-5.0.0-beta2 (2020-04-07)
-------------------------
-- [PATCH] Fix classifiers
-
 5.0.0-beta1 (2020-04-07)
 ------------------------
 - [MAJOR] Invoke Release now runs only on Python 3.7+. It can still release projects that use Python 2, but the ``invoke release`` commands must run on Python 3.7+.
