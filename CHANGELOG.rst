@@ -1,20 +1,6 @@
 Changelog
 =========
 
-5.0.0-beta1 (2020-04-07)
-------------------------
-- [MAJOR] Invoke Release now runs only on Python 3.7+. It can still release projects that use Python 2, but the ``invoke release`` commands must run on Python 3.7+.
-- [MAJOR] Removed ``invoke wheel`` command.
-- [MAJOR] Renamed plugin method ``version_error_check`` to ``error_check`` because it had nothing to do with versions.
-- [MINOR] ``configure_release_parameters`` is deprecated. Please use ``invoke_release.config.config.configure``, instead.
-- [MINOR] Performed a major refactor and re-organization of all internal code.
-- [MINOR] Added Python type annotations.
-- [MINOR] Added the option of supporting other source control providers in the future.
-- [MINOR] Converted to a proper configuration system instead of saving config variables to individual global variables.
-- [PATCH] Added considerable test coverage (>96% lines covered now)
-- [PATCH] ReadTheDocs documentation.
-- [MINOR] Fix #37
-
 4.5.2 (2020-03-31)
 ------------------
 - [PATCH] Properly handle + separator added in previous commit
