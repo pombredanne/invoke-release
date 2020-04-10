@@ -342,7 +342,7 @@ def release(_, verbose=False, no_stash=False):
         instruction = None
         if suggested_version:
             instruction = io.prompt(
-                'According to the changelog message, the next version should be {}. '
+                'According to the changelog message, the next version should be `{}`. '
                 'Do you want to proceed with the suggested version? (Y/n)',
                 suggested_version,
             ).lower() or INSTRUCTION_YES

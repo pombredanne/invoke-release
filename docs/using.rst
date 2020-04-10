@@ -293,154 +293,31 @@ type ``exit`` or ``rollback`` or press Ctrl+C to abort the process.
 .. code-block:: bash
 
     ~/projects/pysoa $ invoke release
-    Invoke Release 5.0.0
-    Current branch master is up to date.
-    Releasing PySOA...
-    Current version: 1.1.3
-    First let's compile the changelog, and then we'll select a version to release.
-    Would you like to enter changelog details for this release? (Y/n/exit): y
-    Would you like to gather commit messages from recent commits and add them to the changelog? (Y/n/exit): y
-
-At this point, the release process will open an editor for you to edit the changelog. By default, this editor will be
-`Vim <https://www.vim.org/>`_, but you can customize this. If an environment variable named ``INVOKE_RELEASE_EDITOR``
-is found, Invoke Release will use that. If not, Invoke Release will look for the ``EDITOR`` environment variable and,
-if that is set, use that. Only then will it fall back to Vim. The Editor can be any executable command/application
-(with arguments, if applicable), but it must be an application that blocks while you are editing the changelog and
-returns only when you save and exit the changelog (like Vim does).
-
-In the changelog editor, you should see something like this:
-
-.. code-block:: bash
-
-    - [MINOR] Ensure support for Redis 6 with ACLs and TLS
-    - [PATCH] Fix #251: Replace use of Django's close_old_connections
-
-    # Enter your changelog message above this comment, then save and close editor when finished.
-    # Any existing contents were pulled from changes to CHANGELOG.txt since the last release.
-    # Leave it blank (delete all existing contents) to release with no changelog details.
-    # All lines starting with "#" are comments and ignored.
-    # As a best practice, if you are entering multiple items as a list, prefix each item with a "-".
-
-Add or edit any changelog items you need, and then save and exit. The release process will continue:
-
-.. code-block:: bash
-
-    According to the changelog message, the next version should be 1.2.0. Do you want to proceed with the suggested
-    version? (Y/n) y
-    The changes to release files have not yet been committed. Are you ready to commit them? (Y/n): y
-    Releasing PySOA version: 1.2.0
-    [master 8cdc82a] Released PySOA version 1.2.0
-     2 files changed, 6 insertions(+), 1 deletion(-)
-    Push release changes and tag to remote origin (branch "master")? (y/N/rollback): y
-    Counting objects: 12, done.
-    Delta compression using up to 8 threads.
-    Compressing objects: 100% (12/12), done.
-    Writing objects: 100% (12/12), 2.66 KiB | 1.33 MiB/s, done.
-    Total 12 (delta 9), reused 0 (delta 0)
-    remote: Resolving deltas: 100% (9/9), completed with 6 local objects.
-    To github.com:eventbrite/pysoa.git
-       8639b16..8cdc82a  master -> master
-    Counting objects: 1, done.
-    Writing objects: 100% (1/1), 923 bytes | 923.00 KiB/s, done.
-    Total 1 (delta 0), reused 0 (delta 0)
-    To github.com:eventbrite/pysoa.git
-     * [new tag]         1.2.0 -> 1.2.0
-    Release process is complete.
+    <example coming soon>
 
 ``invoke branch``
 +++++++++++++++++
 
 This command makes it easy to create branches from previous versions so that you can make changes and release patches
 or minor releases from those branches, even if you've made other changes in the interim that you don't want to include
-in your release. To create such a branch:
+in your release.
 
 .. code-block:: bash
 
     ~/projects/pysoa $ invoke branch
-    Invoke Release 5.0.0
-    Enter a version tag from which to create a new branch (or "exit"): 1.1.3
-    Using tag 1.1.3, would you like to create a minor branch for patch versions (branch name 1.1.x, recommended), or a
-    major branch for minor versions (branch name 1.x.x)? (MINOR/major/exit): minor
-    Switched to a new branch '1.1.x'
-    Branch 1.1.x created. Would you like to go ahead and push it to remote? (y/N): y
-    Total 0 (delta 0), reused 0 (delta 0)
-    remote:
-    remote: Create a pull request for '1.1.x' on GitHub by visiting:
-    remote:      https://github.com/eventbrite/pysoa/pull/new/1.1.x
-    remote:
-    To github.com:eventbrite/pysoa.git
-     * [new branch]      1.1.x -> 1.1.x
-    Branch '1.1.x' set up to track remote branch '1.1.x' from 'origin' by rebasing.
-    Branch process is complete.
+    <example coming soon>
 
-After creating the branch in this way, you would commit (or cherry-pick) the patch changes you want to make to that
-branch (perhaps using the normal Pull Request flow) and push them to the version branch (``1.1.x`` in this case), and
-then you could ``invoke release`` again. The flow is slightly different this time:
-
-.. code-block:: bash
-
-    ~/projects/pysoa $ invoke release
-    Invoke Release 5.0.0
-    Already up to date.
-    Current branch 1.1.x is up to date.
-    You are currently on branch "1.1.x" instead of "master." Are you sure you want to continue releasing from "1.1.x?"
-    You must do this only from version branches, and only when higher versions have been released from the parent
-    branch. (y/N): y
-    Releasing PySOA...
-    Current version: 1.1.4
-    First let's compile the changelog, and then we'll select a version to release.
-    Would you like to enter changelog details for this release? (Y/n/exit):
-    Would you like to gather commit messages from recent commits and add them to the changelog? (Y/n/exit):
-    According to the changelog message, the next version should be 1.1.5. Do you want to proceed with the suggested
-    version? (Y/n)
-    The changes to release files have not yet been committed. Are you ready to commit them? (Y/n):
-    Releasing PySOA version: 1.1.5
-    You have GPG installed on your system and your source control supports signing commits and tags.
-    Would you like to use GPG to sign this release with the key matching your committer email? (y/N/[alternative key ID]): y
-    [1.1.x 011dd97] Released PySOA version 1.1.5
-     2 files changed, 6 insertions(+), 1 deletion(-)
-    Push release changes and tag to remote origin (branch "1.1.x")? (y/N/rollback): y
-    Counting objects: 5, done.
-    Delta compression using up to 8 threads.
-    Compressing objects: 100% (5/5), done.
-    Writing objects: 100% (5/5), 1.26 KiB | 431.00 KiB/s, done.
-    Total 5 (delta 4), reused 0 (delta 0)
-    remote: Resolving deltas: 100% (4/4), completed with 4 local objects.
-    To github.com:eventbrite/pysoa.git
-       eff1aaf..011dd97  1.1.x -> 1.1.x
-    Counting objects: 1, done.
-    Writing objects: 100% (1/1), 955 bytes | 955.00 KiB/s, done.
-    Total 1 (delta 0), reused 0 (delta 0)
-    To github.com:eventbrite/pysoa.git
-     * [new tag]         1.1.5 -> 1.1.5
-    Release process is complete.
-
-``invoke rollback-release``
+``invoke rollback_release``
 +++++++++++++++++++++++++++
 
 Mistakes happen. Whether you locally made a release and, before pushing that release to the remote repository, realized
 you missed something, or you completed a release but need to recall it because it is badly broken, Invoke Release is
-here to help. If you never pushed your release to the remote, Invoke Release can delete the tag and commit like it
-never even happened. If you have already pushed, Invoke Release will delete the local and remote tags but must revert,
-not delete, the commit, so there will be history of your rollback.
-
-Here's an example rollback:
+here to help.
 
 .. code-block:: bash
 
-    ~/projects/pysoa $ invoke rollback-release
-    Invoke Release 5.0.0
-    Current branch 1.0.x is up to date.
-    You are currently on branch "1.0.x" instead of "master." Rolling back on a branch other than master can be dangerous.
-    Are you sure you want to continue rolling back on "1.0.x?" (y/N): y
-    Release tag 1.0.5 will be deleted locally and remotely (if applicable).
-    Do you want to proceed with deleting this tag? (y/N): y
-    Deleted tag '1.0.5' (was c23b0dd)
-    The release tag has been deleted from local and remote (if applicable).
-    The release commit is only present locally, not on the remote origin.
-    Are you ready to delete the commit like it never happened? (y/N): y
-    HEAD is now at ace032c [PATCH] Fix #251: Replace use of Django's close_old_connections
-    Release rollback is complete.
+    ~/projects/pysoa $ invoke rollback_release
+    <example coming soon>
 
 Cryptographically Signing Releases
 ----------------------------------
@@ -571,82 +448,9 @@ Respond to the Prompt
 
 When you run ``invoke release``, it will detect the presence of GnuPG and prompt you to sign your release commit and
 tag. Respond affirmatively to use a key matching your configured Git name and email address, or respond with the
-16-digit shortened key ID to use a different key. This is an example of the alternate process that includes the
-signature prompt:
+16-digit shortened key ID to use a different key.
 
 .. code-block:: bash
 
     ~/projects/pysoa $ invoke release
-    Invoke Release 5.0.0
-    Current branch 1.1.x is up to date.
-    You are currently on branch "1.1.x" instead of "master." Are you sure you want to continue releasing from "1.1.x?"
-    You must do this only from version branches, and only when higher versions have been released from the parent
-    branch. (y/N): y
-    Releasing PySOA...
-    Current version: 1.1.3
-    First let's compile the changelog, and then we'll select a version to release.
-    Would you like to enter changelog details for this release? (Y/n/exit): y
-    Would you like to gather commit messages from recent commits and add them to the changelog? (Y/n/exit): y
-    According to the changelog message, the next version should be 1.1.4. Do you want to proceed with the suggested
-    version? (Y/n) y
-    The changes to release files have not yet been committed. Are you ready to commit them? (Y/n): y
-    Releasing PySOA version: 1.1.4
-    You have GPG installed on your system and your source control supports signing commits and tags.
-    Would you like to use GPG to sign this release with the key matching your committer email? (y/N/[alternative key ID]): y
-
-At this point, the process will be interrupted by a prompt from GnuPG for you to enter your private key password. This
-password does not go through and is not shared with Invoke Release (GnuPG directly takes over the TTY).
-
-.. code-block:: bash
-
-    ┌────────────────────────────────────────────────────────────────┐
-    │ Please enter the passphrase to unlock the OpenPGP secret key:  │
-    │ "Nick Williams <nicholas@example.com>"                         │
-    │ 4096-bit RSA key, ID 9F3A6F3F1D46A033,                         │
-    │ created 2018-01-23.                                            │
-    │                                                                │
-    │                                                                │
-    │ Passphrase: ******************________________________________ │
-    │                                                                │
-    │         <OK>                                    <Cancel>       │
-    └────────────────────────────────────────────────────────────────┘
-
-Once you have entered the correct password, the release process continues:
-
-.. code-block:: bash
-
-    [1.1.x 8cdc82a] Released PySOA version 1.1.4
-     2 files changed, 5 insertions(+), 1 deletion(-)
-    gpg: Signature made Tue Apr  7 13:34:42 2020 CDT
-    gpg:                using RSA key 0611FBD30E18F9FDBE25A02B9F3A6F3F1D46A033
-    gpg:                issuer "nicholas@example.com"
-    gpg: Good signature from "Nick Williams <nicholas@example.com>" [ultimate]
-    object 8cdc82a61d5d82c04bdcacda92ff304e9e3ec383
-    type commit
-    tag 1.1.4
-    tagger Nick Williams <nicholas@example.com> 1586284485 -0500
-
-    Released PySOA version 1.1.4
-
-    Changelog Details:
-    - [PATCH] Fix #251: Replace use of Django's close_old_connections
-    gpg: Signature made Tue Apr  7 13:34:45 2020 CDT
-    gpg:                using RSA key 0611FBD30E18F9FDBE25A02B9F3A6F3F1D46A033
-    gpg:                issuer "nicholas@example.com"
-    gpg: Good signature from "Nick Williams <nicholas@example.com>" [ultimate]
-    Push release changes and tag to remote origin (branch "1.1.x")? (y/N/rollback): y
-    Counting objects: 12, done.
-    Delta compression using up to 8 threads.
-    Compressing objects: 100% (12/12), done.
-    Writing objects: 100% (12/12), 2.66 KiB | 1.33 MiB/s, done.
-    Total 12 (delta 9), reused 0 (delta 0)
-    remote: Resolving deltas: 100% (9/9), completed with 6 local objects.
-    To github.com:eventbrite/pysoa.git
-       8639b16..8cdc82a  1.1.x -> 1.1.x
-    Counting objects: 1, done.
-    Writing objects: 100% (1/1), 923 bytes | 923.00 KiB/s, done.
-    Total 1 (delta 0), reused 0 (delta 0)
-    To github.com:eventbrite/pysoa.git
-     * [new tag]         1.1.4 -> 1.1.4
-    Release process is complete.
-
+    <example coming soon>
