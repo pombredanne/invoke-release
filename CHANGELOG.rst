@@ -1,10 +1,6 @@
 Changelog
 =========
 
-5.0.0-beta3 (2020-04-07)
-------------------------
-- [PATCH] Add configure_release_parameters to __all__
-
 5.0.0-beta2 (2020-04-07)
 ------------------------
 - [PATCH] Fix classifiers
