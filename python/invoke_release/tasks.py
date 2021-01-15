@@ -73,7 +73,7 @@ PUSH_RESULT_NO_ACTION = 0
 PUSH_RESULT_PUSHED = 1
 PUSH_RESULT_ROLLBACK = 2
 
-BRANCH_MASTER = 'master'
+HEAD_BRANCH = 'HEAD branch: '
 
 INSTRUCTION_NO = 'n'
 INSTRUCTION_YES = 'y'
@@ -584,7 +584,7 @@ def _commit_release_changes(release_version, changelog_lines, verbose):
     _verbose_output(verbose, 'Finished releasing changes.')
 
 
-def _push_release_changes(release_version, branch_name, verbose):
+def _push_release_changes(release_version, branch_name, default_branch, verbose):
     try:
         if USE_TAG:
             message = 'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):'
@@ -611,7 +611,7 @@ def _push_release_changes(release_version, branch_name, verbose):
             )
 
         if USE_PULL_REQUEST:
-            _checkout_branch(verbose, BRANCH_MASTER)
+            _checkout_branch(verbose, default_branch)
             _delete_branch(verbose, branch_name)
 
         _verbose_output(verbose, 'Finished pushing changes to remote origin.')
@@ -621,7 +621,7 @@ def _push_release_changes(release_version, branch_name, verbose):
         _standard_output('Rolling back local release commit and tag...')
 
         if USE_PULL_REQUEST:
-            _checkout_branch(verbose, BRANCH_MASTER)
+            _checkout_branch(verbose, default_branch)
             _delete_branch(verbose, branch_name)
         else:
             _delete_last_commit(verbose)
@@ -694,6 +694,22 @@ def _get_branch_name(verbose):
     _verbose_output(verbose, 'Current Git branch name is {}.', branch_name)
 
     return branch_name
+
+
+def _get_default_branch(verbose):
+    _verbose_output(verbose, 'Determining current Git default branch.')
+
+    remote_info = subprocess.check_output(
+        ['git', 'remote', 'show', 'origin'],
+        stderr=sys.stderr,
+    ).decode('utf8').strip()
+    for line in iter(remote_info.splitlines()):
+        if HEAD_BRANCH in line:
+            default_branch = line.strip().replace(HEAD_BRANCH, '')
+
+    _verbose_output(verbose, 'Current Git default branch is {}.', default_branch)
+
+    return default_branch
 
 
 def _create_branch(verbose, branch_name):
@@ -1323,22 +1339,26 @@ def release(_, verbose=False, no_stash=False):
 
     version_regular_expression = RE_VERSION
 
+    default_branch = _get_default_branch(verbose)
+
     branch_name = _get_branch_name(verbose)
-    if branch_name != BRANCH_MASTER:
+    if branch_name != default_branch:
         if not RE_VERSION_BRANCH_MAJOR.match(branch_name) and not RE_VERSION_BRANCH_MINOR.match(branch_name):
             _error_output(
-                'You are currently on branch "{}" instead of "master." You should only release from master or version '
+                'You are currently on branch "{}" instead of "{}". You should only release from default or version '
                 'branches, and this does not appear to be a version branch (must match \\d+\\.x\\.x or \\d+.\\d+\\.x). '
                 '\nCanceling release!',
                 branch_name,
+                default_branch,
             )
             return
 
         instruction = _prompt(
-            'You are currently on branch "{branch}" instead of "master." Are you sure you want to continue releasing '
+            'You are currently on branch "{branch}" instead of "{db}". Are you sure you want to continue releasing '
             'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
             'released from the parent branch. (y/N):',
             branch=branch_name,
+            db=default_branch,
         ).lower()
 
         if instruction != INSTRUCTION_YES:
@@ -1436,12 +1456,12 @@ def release(_, verbose=False, no_stash=False):
 
         if USE_TAG:
             _tag_branch(release_version, cl_message, verbose)
-        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
+        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, default_branch, verbose)
 
         uses_prs_and_branch_is_pushed = USE_PULL_REQUEST and pushed_or_rolled_back == PUSH_RESULT_PUSHED
 
         if uses_prs_and_branch_is_pushed:
-            if current_branch_name != BRANCH_MASTER:
+            if current_branch_name != default_branch:
                 _checkout_branch(verbose, current_branch_name)
             try:
                 github_token = os.environ['GITHUB_TOKEN']
@@ -1502,12 +1522,15 @@ def rollback_release(_, verbose=False, no_stash=False):
 
     __version__ = _import_version_or_exit()
 
+    default_branch = _get_default_branch(verbose)
+
     branch_name = _get_branch_name(verbose)
-    if branch_name != BRANCH_MASTER:
+    if branch_name != default_branch:
         instruction = _prompt(
-            'You are currently on branch "{branch}" instead of "master." Rolling back on a branch other than master '
+            'You are currently on branch "{branch}" instead of "{db}". Rolling back on a branch other than {db} '
             'can be dangerous.\nAre you sure you want to continue rolling back on "{branch}?" (y/N):',
             branch=branch_name,
+            db=default_branch,
         ).lower()
 
         if instruction != INSTRUCTION_YES:
