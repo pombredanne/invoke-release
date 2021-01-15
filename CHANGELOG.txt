@@ -1,6 +1,10 @@
 Changelog
 =========
 
+4.6.0 (2021-01-15)
+------------------
+- [MINOR] Detect default branch and use it instead of defaulting to master (#46)
+
 4.5.2 (2020-03-31)
 ------------------
 - [PATCH] Properly handle + separator added in previous commit
