@@ -1,6 +1,66 @@
 Changelog
 =========
 
+4.6.0 (2021-01-15)
+------------------
+- [MINOR] Detect default branch and use it instead of defaulting to master (#46)
+
+4.5.2 (2020-03-31)
+------------------
+- [PATCH] Properly handle + separator added in previous commit
+
+4.5.1 (2020-03-31)
+------------------
+- [PATCH] Permit a + in the release version specifier
+
+4.5.0 (2020-01-15)
+------------------
+- [PATCH] Fix GitHub PRs workflow when not pushing branch  (#33)
+- [MINOR] Use parse_version instead of LooseVersion to properly compare versions
+
+4.4.3 (2019-12-02)
+------------------
+- [PATCH] Fix title on PR creation (#31)
+
+4.4.2 (2019-10-22)
+------------------
+- Fix open pr (#29)
+
+4.4.1 (2019-10-21)
+------------------
+- [PATCH] Undo branch name changes
+- [PATCH] Avoid re-checking out to the original branch if that branch is `master`
+
+4.4.0 (2019-10-17)
+------------------
+- Ensure the local `invoke-release-{}-{}` branch is deleted after pushhing it to `origin`
+- over idented
+- addressed comments
+- code refactor && fetching repo owner and name
+- code refactor && fetching repo owner and name
+- code refactor && fetching repo owner and name
+- better error handling
+- refactoring to avoid adding a new dependency
+- comments addressed
+- add requests dep
+- check env token
+- fixxes
+- open PR
+- WIP
+
+4.3.0 (2019-10-02)
+------------------
+- Improve `invoke release` workflow by suggesting a version to bump to. (#18)
+- Fix: When using PRs it should go back to the current_branch instead of master.
+- [PATCH] Fix typo in cherry-pick prompt message (#17)
+
+4.2.0 (2019-09-12)
+------------------
+- [MINOR] Automate creation of branch for cherry-picks/fixes.
+- [PATCH] Exit with error message if creating a local tracking branch fails.
+- [MINOR] Add support to invoke branch for pull request workflow
+- [PATCH] Add Python 3.7 testing to CI
+
 4.1.0 (2019-07-18)
 ------------------
 - [MINOR] Add support for pushing to a branch and not tag

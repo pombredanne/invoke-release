@@ -1,31 +1,35 @@
 from __future__ import absolute_import, unicode_literals
 
 import codecs
+from contextlib import closing
 import datetime
+from distutils.version import LooseVersion
+import json
 import os
+from pkg_resources import parse_version
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
-import shlex
-from distutils.version import LooseVersion
 
 from invoke import task
 import six
 from six import moves
+from six.moves import urllib
 from wheel import archive
 
 RE_CHANGELOG_FILE_HEADER = re.compile(r'^=+$')
 RE_CHANGELOG_VERSION_HEADER = re.compile(r'^-+$')
 RE_FILE_EXTENSION = re.compile(r'\.\w+$')
-RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.-]*[a-zA-Z\d]+)?$')
+RE_VERSION = re.compile(r'^\d+\.\d+\.\d+([a-zA-Z\d.+-]*[a-zA-Z\d]+)?$')
 RE_VERSION_BRANCH_MAJOR = re.compile(r'^\d+\.x\.x$')
 RE_VERSION_BRANCH_MINOR = re.compile(r'^\d+\.\d+\.x$')
 RE_SPLIT_AFTER_DIGITS = re.compile(r'(\d+)')
 
 VERSION_INFO_VARIABLE_TEMPLATE = '__version_info__ = {}'
 VERSION_VARIABLE_TEMPLATE = (
-    "__version__ = '-'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
+    "__version__ = '{}'.join(filter(None, ['.'.join(map(str, __version_info__[:3])), "
     "(__version_info__[3:] or [None])[0]]))"
 )
 RELEASE_MESSAGE_TEMPLATE = 'Released [unknown] version {}'
@@ -69,7 +73,7 @@ PUSH_RESULT_NO_ACTION = 0
 PUSH_RESULT_PUSHED = 1
 PUSH_RESULT_ROLLBACK = 2
 
-BRANCH_MASTER = 'master'
+HEAD_BRANCH = 'HEAD branch: '
 
 INSTRUCTION_NO = 'n'
 INSTRUCTION_YES = 'y'
@@ -80,6 +84,10 @@ INSTRUCTION_DELETE = 'delete'
 INSTRUCTION_EXIT = 'exit'
 INSTRUCTION_ROLLBACK = 'rollback'
 INSTRUCTION_MAJOR = 'major'
+
+MAJOR_VERSION_PREFIX = '- [MAJOR]'
+MINOR_VERSION_PREFIX = '- [MINOR]'
+PATCH_VERSION_PREFIX = '- [PATCH]'
 
 
 class ErrorStreamWrapper(object):
@@ -206,7 +214,7 @@ def _cleanup_task(verbose):
         _verbose_output(verbose, 'Finished un-stashing changes.')
 
 
-def _write_to_version_file(release_version, version_info, verbose):
+def _write_to_version_file(release_version, version_info, version_separator, verbose):
     _verbose_output(verbose, 'Writing version to {}...', VERSION_FILENAME)
 
     if not _case_sensitive_regular_file_exists(VERSION_FILENAME):
@@ -230,7 +238,7 @@ def _write_to_version_file(release_version, version_info, verbose):
                 elif line.startswith('__version__'):
                     if not version_info_written:
                         output.append(version_info)
-                    output.append(VERSION_VARIABLE_TEMPLATE)
+                    output.append(VERSION_VARIABLE_TEMPLATE.format(version_separator))
                 else:
                     output.append(line.rstrip())
 
@@ -576,7 +584,7 @@ def _commit_release_changes(release_version, changelog_lines, verbose):
     _verbose_output(verbose, 'Finished releasing changes.')
 
 
-def _push_release_changes(release_version, branch_name, verbose):
+def _push_release_changes(release_version, branch_name, default_branch, verbose):
     try:
         if USE_TAG:
             message = 'Push release changes and tag to remote origin (branch "{}")? (y/N/rollback):'
@@ -602,6 +610,10 @@ def _push_release_changes(release_version, branch_name, verbose):
                 stderr=sys.stderr,
             )
 
+        if USE_PULL_REQUEST:
+            _checkout_branch(verbose, default_branch)
+            _delete_branch(verbose, branch_name)
+
         _verbose_output(verbose, 'Finished pushing changes to remote origin.')
 
         return PUSH_RESULT_PUSHED
@@ -609,7 +621,7 @@ def _push_release_changes(release_version, branch_name, verbose):
         _standard_output('Rolling back local release commit and tag...')
 
         if USE_PULL_REQUEST:
-            _checkout_branch(verbose, BRANCH_MASTER)
+            _checkout_branch(verbose, default_branch)
             _delete_branch(verbose, branch_name)
         else:
             _delete_last_commit(verbose)
@@ -682,6 +694,22 @@ def _get_branch_name(verbose):
     _verbose_output(verbose, 'Current Git branch name is {}.', branch_name)
 
     return branch_name
+
+
+def _get_default_branch(verbose):
+    _verbose_output(verbose, 'Determining current Git default branch.')
+
+    remote_info = subprocess.check_output(
+        ['git', 'remote', 'show', 'origin'],
+        stderr=sys.stderr,
+    ).decode('utf8').strip()
+    for line in iter(remote_info.splitlines()):
+        if HEAD_BRANCH in line:
+            default_branch = line.strip().replace(HEAD_BRANCH, '')
+
+    _verbose_output(verbose, 'Current Git default branch is {}.', default_branch)
+
+    return default_branch
 
 
 def _create_branch(verbose, branch_name):
@@ -1045,6 +1073,60 @@ def _post_rollback(current_version, rollback_to_version):
         plugin.post_rollback(ROOT_DIRECTORY, current_version, rollback_to_version)
 
 
+def _get_version_element_to_bump_if_any(changelog_message):
+    untagged_commit_present = False
+    patch_commit_present = False
+    minor_commit_present = False
+
+    for line in changelog_message:
+        if line.startswith(MAJOR_VERSION_PREFIX):
+            return MAJOR_VERSION_PREFIX
+        if line.startswith(MINOR_VERSION_PREFIX):
+            minor_commit_present = True
+        elif line.startswith(PATCH_VERSION_PREFIX):
+            patch_commit_present = True
+        else:
+            untagged_commit_present = True
+
+    version = PATCH_VERSION_PREFIX if patch_commit_present else None
+    version = MINOR_VERSION_PREFIX if minor_commit_present else version
+
+    return version if not untagged_commit_present else None
+
+
+def _bump_version_according_to_tag(current_version, version_element_to_bump):
+
+    if version_element_to_bump == PATCH_VERSION_PREFIX:
+        return (current_version[0], current_version[1], current_version[2] + 1)
+    if version_element_to_bump == MINOR_VERSION_PREFIX:
+        return (current_version[0], current_version[1] + 1, 0)
+    if version_element_to_bump == MAJOR_VERSION_PREFIX:
+        if current_version[0] == 0:
+            # For MAJOR version zero, recommend to bump a MINOR version instead since going for version 1.x.x should be
+            # a conscious decision and suggestion wouldn't be necessary.
+            return (current_version[0], current_version[1] + 1, 0)
+        else:
+            return (current_version[0] + 1, 0, 0)
+
+    return ''
+
+
+def _suggest_version(current_version, version_element_to_bump):
+    current_version = tuple(
+        map(
+            int,
+            current_version.split('-')[0].split('+')[0].split('.')[:3]
+        )
+    )
+
+    return '.'.join(
+        map(
+            str,
+            _bump_version_according_to_tag(current_version, version_element_to_bump)
+        )
+    ) or None
+
+
 def configure_release_parameters(module_name, display_name, python_directory=None, plugins=None,
                                  use_pull_request=False, use_tag=True):
     global MODULE_NAME, MODULE_DISPLAY_NAME, RELEASE_MESSAGE_TEMPLATE, VERSION_FILENAME, CHANGELOG_FILENAME
@@ -1201,7 +1283,7 @@ def branch(_, verbose=False, no_stash=False):
 
             cherry_pick_branch_suffix = _prompt(
                 'Now we will create the branch where you will apply your fixes. We\n'
-                'need a name to uniquely idenfity your feature branch. I suggest using\n'
+                'need a name to uniquely identify your feature branch. I suggest using\n'
                 'the JIRA ticket id, e.g. EB-120106, of the issue you are working on:'
             )
             if not cherry_pick_branch_suffix:
@@ -1257,22 +1339,26 @@ def release(_, verbose=False, no_stash=False):
 
     version_regular_expression = RE_VERSION
 
+    default_branch = _get_default_branch(verbose)
+
     branch_name = _get_branch_name(verbose)
-    if branch_name != BRANCH_MASTER:
+    if branch_name != default_branch:
         if not RE_VERSION_BRANCH_MAJOR.match(branch_name) and not RE_VERSION_BRANCH_MINOR.match(branch_name):
             _error_output(
-                'You are currently on branch "{}" instead of "master." You should only release from master or version '
+                'You are currently on branch "{}" instead of "{}". You should only release from default or version '
                 'branches, and this does not appear to be a version branch (must match \\d+\\.x\\.x or \\d+.\\d+\\.x). '
                 '\nCanceling release!',
                 branch_name,
+                default_branch,
             )
             return
 
         instruction = _prompt(
-            'You are currently on branch "{branch}" instead of "master." Are you sure you want to continue releasing '
+            'You are currently on branch "{branch}" instead of "{db}". Are you sure you want to continue releasing '
             'from "{branch}?" You should only do this from version branches, and only when higher versions have been '
             'released from the parent branch. (y/N):',
             branch=branch_name,
+            db=default_branch,
         ).lower()
 
         if instruction != INSTRUCTION_YES:
@@ -1293,7 +1379,21 @@ def release(_, verbose=False, no_stash=False):
         _standard_output('Releasing {}...', MODULE_DISPLAY_NAME)
         _standard_output('Current version: {}', __version__)
 
-        release_version = _prompt('Enter a new version (or "exit"):').lower()
+        cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
+        suggested_version = _suggest_version(__version__, _get_version_element_to_bump_if_any(cl_message))
+
+        instruction = None
+        if suggested_version:
+            instruction = _prompt(
+               'According to the changelog message the next version should be `{}`. '
+               'Do you want to proceed with the suggested version? (Y/n)'.format(suggested_version)
+            ).lower() or INSTRUCTION_YES
+
+        if instruction == INSTRUCTION_YES:
+            release_version = suggested_version
+        else:
+            release_version = _prompt('Enter a new version (or "exit"):').lower()
+
         if not release_version or release_version == INSTRUCTION_EXIT:
             raise ReleaseExit()
 
@@ -1308,18 +1408,21 @@ def release(_, verbose=False, no_stash=False):
         # Deconstruct and reconstruct the version, to make sure it is consistent everywhere
         version_info = release_version.split('.', 2)
         end_parts = list(filter(None, RE_SPLIT_AFTER_DIGITS.split(version_info[2], 1)))
+        version_separator = '-'
         if len(end_parts) > 1:
             version_info[0] = int(version_info[0])
             version_info[1] = int(version_info[1])
             version_info[2] = int(end_parts[0])
-            version_info.append(end_parts[1].strip(' .-_'))
+            version_info.append(end_parts[1].strip(' .-_+'))
+            if end_parts[1][0] in ('-', '+', '.'):
+                version_separator = end_parts[1][0]
         else:
             version_info = list(map(int, version_info))
-        release_version = '-'.join(
+        release_version = version_separator.join(
             filter(None, ['.'.join(map(six.text_type, version_info[:3])), (version_info[3:] or [None])[0]])
         )  # This must match the code in VERSION_VARIABLE_TEMPLATE at the top of this file
 
-        if not (LooseVersion(release_version) > LooseVersion(__version__)):
+        if not (parse_version(release_version) > parse_version(__version__)):
             raise ReleaseFailure(
                 'New version number {new_version} is not greater than current version {old_version}.'.format(
                     new_version=release_version,
@@ -1332,15 +1435,13 @@ def release(_, verbose=False, no_stash=False):
                 'Tag {} already exists locally or remotely (or both). Cannot create version.'.format(release_version),
             )
 
-        cl_header, cl_message, cl_footer = _prompt_for_changelog(verbose)
-
         instruction = _prompt('The release has not yet been committed. Are you ready to commit it? (Y/n):').lower()
         if instruction and instruction != INSTRUCTION_YES:
             raise ReleaseExit()
 
         _standard_output('Releasing {module} version: {version}', module=MODULE_DISPLAY_NAME, version=release_version)
 
-        _write_to_version_file(release_version, version_info, verbose)
+        _write_to_version_file(release_version, version_info, version_separator, verbose)
         _write_to_changelog_file(release_version, cl_header, cl_message, cl_footer, verbose)
 
         _pre_commit(__version__, release_version)
@@ -1355,16 +1456,36 @@ def release(_, verbose=False, no_stash=False):
 
         if USE_TAG:
             _tag_branch(release_version, cl_message, verbose)
-        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, verbose)
+        pushed_or_rolled_back = _push_release_changes(release_version, branch_name, default_branch, verbose)
 
-        if USE_PULL_REQUEST:
-            _checkout_branch(verbose, BRANCH_MASTER)
+        uses_prs_and_branch_is_pushed = USE_PULL_REQUEST and pushed_or_rolled_back == PUSH_RESULT_PUSHED
 
+        if uses_prs_and_branch_is_pushed:
+            if current_branch_name != default_branch:
+                _checkout_branch(verbose, current_branch_name)
+            try:
+                github_token = os.environ['GITHUB_TOKEN']
+            except KeyError:
+                pr_opened = False
+                _standard_output('Then environment variable `GITHUB_TOKEN` is not set. Will not open GitHub PR.')
+            else:
+                pr_opened = open_pull_request(
+                    branch_name,
+                    current_branch_name,
+                    MODULE_DISPLAY_NAME,
+                    release_version,
+                    github_token,
+                )
         _post_release(__version__, release_version, pushed_or_rolled_back)
 
-        if USE_PULL_REQUEST:
-            _standard_output("You're almost done! The release process will be complete when you create "
-                             "a pull request and it is merged.")
+        if uses_prs_and_branch_is_pushed:
+            if pr_opened:
+                _standard_output('GitHub PR created successfully. URL: {}'.format(pr_opened))
+            else:
+                _standard_output(
+                    "You're almost done! The release process will be complete when you create "
+                    "a pull request and it is merged."
+                )
         else:
             _standard_output('Release process is complete.')
     except ReleaseFailure as e:
@@ -1401,12 +1522,15 @@ def rollback_release(_, verbose=False, no_stash=False):
 
     __version__ = _import_version_or_exit()
 
+    default_branch = _get_default_branch(verbose)
+
     branch_name = _get_branch_name(verbose)
-    if branch_name != BRANCH_MASTER:
+    if branch_name != default_branch:
         instruction = _prompt(
-            'You are currently on branch "{branch}" instead of "master." Rolling back on a branch other than master '
+            'You are currently on branch "{branch}" instead of "{db}". Rolling back on a branch other than {db} '
             'can be dangerous.\nAre you sure you want to continue rolling back on "{branch}?" (y/N):',
             branch=branch_name,
+            db=default_branch,
         ).lower()
 
         if instruction != INSTRUCTION_YES:
@@ -1503,3 +1627,36 @@ def wheel(_):
         archive_name=archive_name,
         base_dir=base_dir
     ))
+
+
+def open_pull_request(branch_name, current_branch_name, display_name, version_to_release, github_token):
+    remote = six.text_type(
+        subprocess.check_output(
+            ['git', 'remote', 'get-url', 'origin'],
+            stderr=subprocess.STDOUT,
+        )
+    )
+    repo = (remote.split(':')[1].split('.')[0])
+    url = 'https://api.github.com/repos/{}/pulls'.format(repo)
+
+    values = {
+        'title': 'Released {} version {}'.format(display_name, version_to_release),
+        'base': current_branch_name,
+        'head': branch_name,
+    }
+
+    body = json.dumps(values).encode('utf-8')
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'token {}'.format(github_token),
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Length': len(body),
+    }
+
+    try:
+        req = urllib.request.Request(url, body, headers)
+        with closing(urllib.request.urlopen(req)) as f:
+            # GitHub will always answer with 201 if the PR was `CREATED`.
+            return f.getcode() == 201 and json.loads(f.read().decode('utf-8'))['html_url']
+    except Exception:
+        _error_output('Could not open Github PR')
